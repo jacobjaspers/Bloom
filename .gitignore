@@ -1,0 +1,5 @@
+node_modules/
+web/dist/
+server/smbus/modules/*.bin
+*.tmp.ts
+.claude/

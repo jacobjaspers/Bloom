@@ -1,0 +1,33 @@
+{
+  "name": "lumen",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A lightweight, open RGB lighting controller for ASRock Polychrome ARGB headers and ENE-based DDR4 RAM (G.Skill Trident Z RGB).",
+  "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
+  "scripts": {
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "node server/main.ts",
+    "demo": "node server/main.ts --demo",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "koffi": "^3.3.6",
+    "node-hid": "^3.4.0",
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^6.2.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}
