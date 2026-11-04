@@ -13,6 +13,8 @@ A local Node service owns the hardware and runs a 30 fps effect engine. A React 
 ## Highlights
 
 - **One effect engine, two consumers.** Effects are pure functions of `(time, LED position) → color` in [`shared/effects.ts`](shared/effects.ts). The server runs them for the hardware, and the UI runs the *same code* for the animated effect thumbnails.
+- **Layered effect editor.** Each effect is a *field* that returns a gradient position and a brightness. A shared pipeline then applies gradient palettes (up to 12 stops), motion curves (smooth, linear, pulse, hard, saw), contrast, brightness range, hue drift and per-device offset. Up to 6 layers stack with Normal, Add, Screen or Multiply blending.
+- **Presets.** 10 built-ins, plus your own: save, update, rename, delete, and import/export as JSON. Imported files are validated by the same sanitizer the server uses ([`shared/stack.ts`](shared/stack.ts)), and Lumen 0.1 scenes are migrated automatically.
 - **Spatial effects.** Every LED gets a position in a virtual case ([`shared/layout.ts`](shared/layout.ts)), so waves, ripples and aurora flow across fans *and* RAM as one scene instead of looping per device.
 - **Live preview, not a mock-up.** The stage canvas draws the exact bytes being sent to the hardware, streamed as compact binary frames.
 - **SMBus safety guard.** RAM lighting shares a bus with the DIMMs' SPD EEPROMs. Every SMBus transaction goes through an allow-list ([`smbus.ts`](server/smbus/smbus.ts)) that hard-refuses the SPD ranges, and the system-wide `Access_SMBUS.HTP.Method` mutex is held so Lumen never collides with hardware monitors like HWiNFO.

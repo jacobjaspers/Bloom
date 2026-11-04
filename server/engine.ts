@@ -34,7 +34,7 @@ export class Engine {
   constructor(devices: LightDevice[], scene: Scene) {
     this.devices = devices;
     this.scene = scene;
-    this.globalRenderer = createRenderer(scene.effect);
+    this.globalRenderer = createRenderer({ layers: [] }); // real one is built in setScene()
   }
 
   async open(): Promise<void> {
@@ -116,7 +116,7 @@ export class Engine {
           r = g = b = 0;
         } else {
           const p = layout.points[i];
-          const c = p ? render(t, p) : ([0, 0, 0] as const);
+          const c = p ? render(t, p, zi) : ([0, 0, 0] as const);
           r = c[0] * k;
           g = c[1] * k;
           b = c[2] * k;

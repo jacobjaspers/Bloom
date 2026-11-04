@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { BUILTIN_PRESETS } from '../../../shared/presets.ts';
 import type { ColorOrder, Scene, ZoneRuntime, ZoneSettings } from '../../../shared/types.ts';
-import { PRESETS } from '../presets.ts';
 import { Section, Slider, Stepper, Toggle } from './controls.tsx';
-import { EffectSection } from './EffectPicker.tsx';
+import { Presets } from './Presets.tsx';
+import { StackEditor } from './StackEditor.tsx';
 
 const ORDERS: ColorOrder[] = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
+const KIND_TEXT = { ram: 'RAM stick', fans: 'Addressable RGB header', gpu: 'Graphics card logo', accent: 'Motherboard lighting' };
 
 export function GlobalInspector({ scene, update }: { scene: Scene; update: (m: (s: Scene) => void) => void }) {
   return (
@@ -12,34 +14,15 @@ export function GlobalInspector({ scene, update }: { scene: Scene; update: (m: (
       <div className="inspector-head">
         <div>
           <h2>All zones</h2>
-          <p>Zones set to Synced follow this effect.</p>
+          <p>Zones set to Follow global use this effect.</p>
         </div>
       </div>
-      <Section title="Themes">
-        <div className="presets">
-          {PRESETS.map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              className="preset"
-              onClick={() =>
-                update((s) => {
-                  s.effect = structuredClone(p.effect);
-                })
-              }
-            >
-              <span className="preset-swatch" style={{ background: p.swatch }} />
-              {p.name}
-            </button>
-          ))}
-        </div>
-      </Section>
-      <EffectSection
-        title="Effect"
-        value={scene.effect}
-        onChange={(e) =>
+      <Presets scene={scene} update={update} />
+      <StackEditor
+        stack={scene.effect}
+        onChange={(effect) =>
           update((s) => {
-            s.effect = e;
+            s.effect = effect;
           })
         }
       />
@@ -66,6 +49,7 @@ export function ZoneInspector({
     update((sc) => {
       Object.assign(sc.zones[zone.id], patch);
     });
+  const presets = [...scene.presets, ...BUILTIN_PRESETS];
 
   return (
     <div className="inspector">
@@ -80,8 +64,7 @@ export function ZoneInspector({
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           />
           <p>
-            {{ ram: 'RAM stick', fans: 'Addressable RGB header', gpu: 'Graphics card logo', accent: 'Motherboard lighting' }[zone.kind]} ·{' '}
-            {zone.ledCount} {zone.ledCount === 1 ? 'LED' : 'LEDs'}
+            {KIND_TEXT[zone.kind]} · {zone.ledCount} {zone.ledCount === 1 ? 'LED' : 'LEDs'}
           </p>
         </div>
         <Toggle checked={s.enabled} label="Zone on/off" onChange={(enabled) => set({ enabled })} />
@@ -100,12 +83,40 @@ export function ZoneInspector({
             onChange={(synced) => set(synced ? { synced } : { synced, effect: structuredClone(scene.effect) })}
           />
         </div>
+        {!s.synced && (
+          <div className="field">
+            <div className="field-head">
+              <label htmlFor="zone-preset">Start from a preset</label>
+            </div>
+            <select
+              id="zone-preset"
+              className="select"
+              value=""
+              onChange={(e) => {
+                const p = presets.find((x) => x.id === e.target.value);
+                if (p) set({ effect: structuredClone(p.stack) });
+              }}
+            >
+              <option value="" disabled>
+                Choose…
+              </option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                  {p.builtin ? '' : ' (yours)'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </Section>
 
-      {!s.synced && <EffectSection title="Effect" value={s.effect} onChange={(effect) => set({ effect })} />}
+      {!s.synced && <StackEditor stack={s.effect} onChange={(effect) => set({ effect })} />}
 
       <Section
         title="Hardware"
+        collapsible
+        defaultOpen={zone.configurable}
         aside={
           <button type="button" className="ghost-btn" onClick={() => identify(zone.id)}>
             Identify
@@ -114,27 +125,16 @@ export function ZoneInspector({
       >
         {zone.configurable && (
           <>
-            <Stepper
-              label="LEDs connected"
-              value={s.ledCount ?? 40}
-              min={1}
-              max={zone.maxLeds}
-              onChange={(ledCount) => set({ ledCount })}
-            />
+            <Stepper label="LEDs connected" value={s.ledCount ?? 40} min={1} max={zone.maxLeds} onChange={(ledCount) => set({ ledCount })} />
             <Stepper label="Fans on this header" value={s.fanCount ?? 1} min={0} max={8} onChange={(fanCount) => set({ fanCount })} />
-            <p className="hint">Set fans to 0 for an LED strip. Use Identify to watch a white chase run along this header.</p>
+            <p className="hint">Set fans to 0 for an LED strip. Identify runs a white chase along this zone.</p>
           </>
         )}
         <div className="field">
           <div className="field-head">
             <label htmlFor="order">Color order</label>
           </div>
-          <select
-            id="order"
-            className="select"
-            value={s.colorOrder}
-            onChange={(e) => set({ colorOrder: e.target.value as ColorOrder })}
-          >
+          <select id="order" className="select" value={s.colorOrder} onChange={(e) => set({ colorOrder: e.target.value as ColorOrder })}>
             {ORDERS.map((o) => (
               <option key={o} value={o}>
                 {o}

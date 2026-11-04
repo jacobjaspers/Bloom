@@ -22,25 +22,64 @@ export interface ZoneInfo {
 
 export type EffectId =
   | 'solid'
-  | 'breathing'
-  | 'rainbow'
-  | 'spectrum'
   | 'gradient'
+  | 'breathing'
+  | 'wave'
+  | 'cycle'
   | 'aurora'
   | 'ripple'
   | 'comet'
+  | 'twinkle'
   | 'ember';
 
-export type Direction = 'right' | 'left' | 'up' | 'down';
+/** Shape of an effect's motion over one cycle. */
+export type Curve = 'smooth' | 'linear' | 'pulse' | 'hard' | 'saw';
 
-export interface EffectConfig {
-  id: EffectId;
-  colors: string[];
-  /** 0–100 */
+/** How a layer combines with the layers beneath it. */
+export type BlendMode = 'normal' | 'add' | 'screen' | 'multiply';
+
+export interface ColorStop {
+  /** 0..1 along the gradient */
+  pos: number;
+  color: string;
+}
+
+/** One effect in a stack. Every control is 0–100 unless noted. */
+export interface Layer {
+  /** Stable id for React keys and selection. */
+  key: string;
+  effect: EffectId;
+  enabled: boolean;
+  palette: ColorStop[];
   speed: number;
-  /** 0–100, effect-specific "scale" (wave length, tail length, noise size…) */
+  /** Effect-specific scale: wave length, tail length, cloud size… */
   size: number;
-  direction: Direction;
+  /** Direction of travel in degrees, 0 = left→right, 90 = bottom→top. */
+  angle: number;
+  reverse: boolean;
+  curve: Curve;
+  /** How strongly brightness varies (0 = flat, 100 = full contrast). */
+  intensity: number;
+  minBrightness: number;
+  maxBrightness: number;
+  /** Slow hue drift, in degrees either side of the palette (0–180). */
+  hueDrift: number;
+  /** 0 = every zone in lockstep, 100 = each zone a full cycle apart. */
+  spread: number;
+  blend: BlendMode;
+  opacity: number;
+}
+
+/** Layers render bottom (index 0) to top. */
+export interface EffectStack {
+  layers: Layer[];
+}
+
+export interface Preset {
+  id: string;
+  name: string;
+  stack: EffectStack;
+  builtin?: boolean;
 }
 
 export interface ZoneSettings {
@@ -49,7 +88,7 @@ export interface ZoneSettings {
   brightness: number;
   /** When true the zone follows the global effect; otherwise it uses `effect`. */
   synced: boolean;
-  effect: EffectConfig;
+  effect: EffectStack;
   label?: string;
   /** ARGB only: number of LEDs actually connected. */
   ledCount?: number;
@@ -62,8 +101,12 @@ export interface Scene {
   power: boolean;
   /** 0–100 */
   brightness: number;
-  effect: EffectConfig;
+  effect: EffectStack;
   zones: Record<string, ZoneSettings>;
+  /** The user's saved presets (built-ins live in shared/presets.ts). */
+  presets: Preset[];
+  /** Preset the global effect was last loaded from or saved to, if any. */
+  activePreset?: string;
 }
 
 export type DeviceState = 'connected' | 'unavailable' | 'error';

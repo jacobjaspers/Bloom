@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '../shared/types.ts';
-import { loadScene } from './config.ts';
+import { loadScene, useSceneFile } from './config.ts';
 import { AsrockPolychrome } from './devices/asrock-polychrome.ts';
 import { EneRam } from './devices/ene-ram.ts';
 import { GigabyteGpu } from './devices/gigabyte-gpu.ts';
@@ -18,6 +18,8 @@ const demo = process.argv.includes('--demo');
 const PORT = Number(process.env.LUMEN_PORT ?? 7420);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.join(here, '..', 'web', 'dist');
+
+if (demo) useSceneFile('scene-demo.json');
 
 const engine = new Engine(
   demo ? demoDevices() : [new AsrockPolychrome(), new EneRam(), new GigabyteGpu()],

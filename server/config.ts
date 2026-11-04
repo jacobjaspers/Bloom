@@ -3,14 +3,20 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { EFFECT_BY_ID } from '../shared/effects.ts';
-import type { EffectConfig, Scene, ZoneInfo, ZoneSettings } from '../shared/types.ts';
+import { BUILTIN_PRESETS } from '../shared/presets.ts';
+import { sanitizePresets, sanitizeStack } from '../shared/stack.ts';
+import type { ColorOrder, EffectStack, Scene, ZoneInfo, ZoneSettings } from '../shared/types.ts';
 
 const dir = path.join(process.env.APPDATA ?? path.join(os.homedir(), '.config'), 'Lumen');
-const file = path.join(dir, 'scene.json');
+let file = path.join(dir, 'scene.json');
 
-export function defaultEffect(): EffectConfig {
-  return structuredClone(EFFECT_BY_ID.aurora.defaults);
+/** Demo mode keeps its own file so it never overwrites the real rig's settings. */
+export function useSceneFile(name: string): void {
+  file = path.join(dir, name);
+}
+
+export function defaultEffect(): EffectStack {
+  return structuredClone(BUILTIN_PRESETS[0].stack);
 }
 
 export function defaultZone(z: ZoneInfo): ZoneSettings {
@@ -30,13 +36,14 @@ export function defaultZone(z: ZoneInfo): ZoneSettings {
 }
 
 export function defaultScene(): Scene {
-  return { power: true, brightness: 80, effect: defaultEffect(), zones: {} };
+  return { power: true, brightness: 80, effect: defaultEffect(), zones: {}, presets: [], activePreset: BUILTIN_PRESETS[0].id };
 }
 
 export function loadScene(): Scene {
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<Scene>;
-    return { ...defaultScene(), ...parsed, zones: parsed.zones ?? {} };
+    // A saved scene only has an active preset if it recorded one.
+    return { ...defaultScene(), activePreset: undefined, ...parsed, zones: parsed.zones ?? {} };
   } catch {
     return defaultScene();
   }
@@ -55,25 +62,34 @@ export function saveScene(scene: Scene): void {
   }, 400);
 }
 
-/** Make sure every known zone has settings and that values are in range. */
+const ORDERS: ColorOrder[] = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
+const clamp = (v: unknown, lo: number, hi: number, def: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : def;
+
+/** Make sure every known zone has settings, values are in range, and old formats are upgraded. */
 export function reconcile(scene: Scene, zones: ZoneInfo[]): Scene {
   const next: Scene = structuredClone(scene);
+  next.effect = sanitizeStack(next.effect, defaultEffect);
+  next.presets = sanitizePresets(next.presets);
+  next.brightness = clamp(next.brightness, 0, 100, 80);
+  next.power = next.power !== false;
+  if (typeof next.activePreset !== 'string') delete next.activePreset;
+
   for (const z of zones) {
     const cur = next.zones[z.id];
     const def = defaultZone(z);
     const s: ZoneSettings = cur ? { ...def, ...cur } : def;
     if (z.configurable) {
-      s.ledCount = Math.max(1, Math.min(z.maxLeds, Math.round(s.ledCount ?? 40)));
-      s.fanCount = Math.max(0, Math.min(8, Math.round(s.fanCount ?? 1)));
+      s.ledCount = Math.round(clamp(s.ledCount, 1, z.maxLeds, 40));
+      s.fanCount = Math.round(clamp(s.fanCount, 0, 8, 1));
     } else {
       delete s.ledCount;
       delete s.fanCount;
     }
-    s.brightness = Math.max(0, Math.min(100, s.brightness));
-    if (!EFFECT_BY_ID[s.effect?.id]) s.effect = defaultEffect();
+    s.brightness = clamp(s.brightness, 0, 100, 100);
+    s.effect = sanitizeStack(s.effect, () => structuredClone(next.effect));
+    if (!ORDERS.includes(s.colorOrder)) s.colorOrder = 'RGB';
     next.zones[z.id] = s;
   }
-  next.brightness = Math.max(0, Math.min(100, next.brightness));
-  if (!EFFECT_BY_ID[next.effect?.id]) next.effect = defaultEffect();
   return next;
 }
