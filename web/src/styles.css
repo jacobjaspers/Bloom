@@ -173,6 +173,11 @@ code {
   grid-template-columns: 264px minmax(0, 1fr) 404px;
 }
 
+/* Folding Zones hands its column back to the case display. */
+.layout:has(.zones-panel.closed) {
+  grid-template-columns: 168px minmax(0, 1fr) 404px;
+}
+
 .sidebar,
 .panel {
   min-height: 0;
@@ -850,24 +855,76 @@ code {
   border-color: var(--accent);
 }
 
-/* ---- collapsible sections --------------------------------------------------- */
+/* ---- panels (Zones / Presets / Customize) -------------------------------------- */
 
-.section-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--faint);
+.panel-block {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(13, 15, 21, 0.6);
 }
 
-.section-toggle:hover {
+.panel-block.open {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 120px), rgba(13, 15, 21, 0.6);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  min-height: 52px;
+}
+
+.panel-block.open .panel-head {
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 2px;
+  margin-left: -2px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+}
+
+.panel-toggle:hover {
   color: var(--text);
 }
 
-.section-toggle:hover h3 {
-  color: var(--muted);
+.panel-toggle h2 {
+  margin: 0;
+  font: 600 15px/1.2 var(--font-display);
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.panel-aside {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 16px 14px 18px;
+}
+
+.sidebar .panel-body {
+  gap: 16px;
+  padding: 10px 8px 12px;
+}
+
+.section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .section-body {
@@ -876,8 +933,83 @@ code {
   gap: 14px;
 }
 
-.section.closed {
-  gap: 0;
+.back-link {
+  align-self: flex-start;
+  margin-bottom: -10px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+/* ---- info tips -------------------------------------------------------------- */
+
+.label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-tip {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--faint);
+  cursor: help;
+  flex: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.info-tip:hover,
+.info-tip.open {
+  color: var(--accent);
+  background: rgba(139, 123, 255, 0.12);
+}
+
+.info-bubble {
+  position: fixed;
+  z-index: 100;
+  width: 260px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: rgba(22, 25, 35, 0.97);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.8);
+  color: var(--text);
+  font: 400 12.5px/1.5 var(--font);
+  text-transform: none;
+  letter-spacing: normal;
+  pointer-events: none;
+  animation: tip-in 0.12s ease-out;
+}
+
+.info-bubble.above {
+  transform: translateY(-100%);
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    margin-top: -3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-bubble {
+    animation: none;
+  }
 }
 
 .row-tight {
@@ -1245,7 +1377,7 @@ code {
 
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 8px;
 }
 
@@ -1326,7 +1458,7 @@ code {
 }
 
 .effect-grid {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
 }
 
 .effect-card span {
@@ -1357,7 +1489,11 @@ code {
   .panel {
     overflow: visible;
     border: 0;
-    border-top: 1px solid var(--border);
+    background: none;
+    padding: 0 12px 12px;
+  }
+  .panel .inspector {
+    padding: 0;
   }
   .master-bright .slider {
     width: 110px;

@@ -1,4 +1,101 @@
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+
+// ---- help -------------------------------------------------------------------------
+
+/**
+ * Small ⓘ button that explains a control in plain words. Opens on hover or focus,
+ * stays open on click, and closes with Escape or a click elsewhere. The bubble is
+ * position: fixed so scrolling panels can't clip it.
+ */
+export function InfoTip({ text, label }: { text: string; label: string }) {
+  const btn = useRef<HTMLButtonElement>(null);
+  const tipId = useId();
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const open = hover || pinned;
+
+  useLayoutEffect(() => {
+    if (!open || !btn.current) return;
+    const r = btn.current.getBoundingClientRect();
+    const width = 260;
+    const left = Math.max(12, Math.min(window.innerWidth - width - 12, r.left + r.width / 2 - width / 2));
+    const below = r.bottom + 8;
+    setPos({ top: below + 120 > window.innerHeight ? r.top - 8 : below, left });
+  }, [open]);
+
+  useEffect(() => {
+    if (!pinned) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Escape') return;
+      if (e instanceof PointerEvent && btn.current?.contains(e.target as Node)) return;
+      setPinned(false);
+      setHover(false);
+    };
+    window.addEventListener('keydown', close);
+    window.addEventListener('pointerdown', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('keydown', close);
+      window.removeEventListener('pointerdown', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [pinned]);
+
+  const above = pos && btn.current && pos.top < btn.current.getBoundingClientRect().top;
+
+  return (
+    <>
+      <button
+        ref={btn}
+        type="button"
+        className={`info-tip ${open ? 'open' : ''}`}
+        aria-label={`About ${label}`}
+        aria-describedby={open ? tipId : undefined}
+        aria-expanded={open}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => {
+          setHover(false);
+          setPinned(false);
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setPinned((p) => !p);
+        }}
+      >
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M8 7.2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="8" cy="4.9" r="0.95" fill="currentColor" />
+        </svg>
+      </button>
+      {open && pos && (
+        <span
+          id={tipId}
+          role="tooltip"
+          className={`info-bubble ${above ? 'above' : ''}`}
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {text}
+        </span>
+      )}
+    </>
+  );
+}
+
+function LabelText({ children, info, htmlFor }: { children: ReactNode; info?: string; htmlFor?: string }) {
+  return (
+    <span className="label-wrap">
+      {htmlFor ? <label htmlFor={htmlFor}>{children}</label> : <span className="label">{children}</span>}
+      {info && <InfoTip text={info} label={typeof children === 'string' ? children : 'this setting'} />}
+    </span>
+  );
+}
+
+// ---- basic controls ------------------------------------------------------------------
 
 export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
@@ -23,6 +120,7 @@ export function Slider({
   max = 100,
   step = 1,
   suffix = '%',
+  info,
 }: {
   label: string;
   value: number;
@@ -31,13 +129,16 @@ export function Slider({
   max?: number;
   step?: number;
   suffix?: string;
+  info?: string;
 }) {
   const id = useId();
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="field">
       <div className="field-head">
-        <label htmlFor={id}>{label}</label>
+        <LabelText htmlFor={id} info={info}>
+          {label}
+        </LabelText>
         <span className="value">
           {value}
           {suffix}
@@ -63,16 +164,18 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  info,
 }: {
   label: string;
   value: T;
   options: { value: T; label: ReactNode; title?: string }[];
   onChange: (v: T) => void;
+  info?: string;
 }) {
   return (
     <div className="field">
       <div className="field-head">
-        <span className="label">{label}</span>
+        <LabelText info={info}>{label}</LabelText>
       </div>
       <div className="segmented" role="radiogroup" aria-label={label}>
         {options.map((o) => (
@@ -93,31 +196,25 @@ export function Segmented<T extends string>({
   );
 }
 
-export function Swatch({ color, onChange, label }: { color: string; onChange: (c: string) => void; label: string }) {
-  return (
-    <label className="swatch" style={{ '--c': color } as React.CSSProperties} title={`${label}: ${color}`}>
-      <input type="color" value={color} aria-label={label} onChange={(e) => onChange(e.target.value)} />
-    </label>
-  );
-}
-
 export function Stepper({
   label,
   value,
   min,
   max,
   onChange,
+  info,
 }: {
   label: string;
   value: number;
   min: number;
   max: number;
   onChange: (v: number) => void;
+  info?: string;
 }) {
   const clamp = (v: number) => Math.max(min, Math.min(max, v));
   return (
     <div className="stepper">
-      <span className="label">{label}</span>
+      <LabelText info={info}>{label}</LabelText>
       <div className="stepper-ctl">
         <button type="button" aria-label={`Decrease ${label}`} onClick={() => onChange(clamp(value - 1))}>
           −
@@ -141,36 +238,93 @@ export function Stepper({
   );
 }
 
-export function Section({
-  title,
-  children,
-  aside,
-  collapsible = false,
-  defaultOpen = true,
-}: {
-  title: string;
-  children: ReactNode;
-  aside?: ReactNode;
-  collapsible?: boolean;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const id = useId();
+/** A labelled row with a control on the right (used for on/off switches). */
+export function Row({ title, sub, info, children }: { title: string; sub?: string; info?: string; children: ReactNode }) {
   return (
-    <section className={`section ${open ? '' : 'closed'}`}>
+    <div className="row">
+      <div>
+        <div className="row-title">
+          <LabelText info={info}>{title}</LabelText>
+        </div>
+        {sub && <div className="row-sub">{sub}</div>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ---- layout -----------------------------------------------------------------------
+
+/** A titled group inside a panel. Always open. */
+export function Section({ title, children, aside, info }: { title: string; children: ReactNode; aside?: ReactNode; info?: string }) {
+  return (
+    <section className="section">
       <header>
-        {collapsible ? (
-          <button type="button" className="section-toggle" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
-            <Chevron open={open} />
-            <h3>{title}</h3>
-          </button>
-        ) : (
+        <span className="section-title">
           <h3>{title}</h3>
-        )}
+          {info && <InfoTip text={info} label={title} />}
+        </span>
         {aside}
       </header>
+      <div className="section-body">{children}</div>
+    </section>
+  );
+}
+
+function readOpen(key: string, fallback: boolean): boolean {
+  try {
+    const v = localStorage.getItem(`lumen.panel.${key}`);
+    return v === null ? fallback : v === '1';
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Top-level collapsible panel (Zones, Presets, Customize). Remembers whether it was
+ * open in this browser.
+ */
+export function Panel({
+  id,
+  title,
+  info,
+  aside,
+  children,
+  defaultOpen = true,
+  className = '',
+}: {
+  id: string;
+  title: string;
+  info?: string;
+  aside?: ReactNode;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(() => readOpen(id, defaultOpen));
+  const bodyId = useId();
+  const toggle = () => {
+    setOpen((o) => {
+      try {
+        localStorage.setItem(`lumen.panel.${id}`, o ? '0' : '1');
+      } catch {
+        /* storage unavailable: still works for this visit */
+      }
+      return !o;
+    });
+  };
+  return (
+    <section className={`panel-block ${open ? 'open' : 'closed'} ${className}`}>
+      <header className="panel-head">
+        <button type="button" className="panel-toggle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
+          <Chevron open={open} />
+          <h2>{title}</h2>
+        </button>
+        {info && <InfoTip text={info} label={title} />}
+        <span className="panel-aside">{open && aside}</span>
+      </header>
       {open && (
-        <div id={id} className="section-body">
+        <div id={bodyId} className="panel-body">
           {children}
         </div>
       )}
@@ -180,14 +334,32 @@ export function Section({
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }}>
-      <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 12 12"
+      width="11"
+      height="11"
+      aria-hidden="true"
+      style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .18s' }}
+    >
+      <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
+// ---- specialised controls ---------------------------------------------------------------
+
 /** Circular direction picker; 0° points right, angles grow counter-clockwise. */
-export function AngleDial({ label, value, onChange }: { label: string; value: number; onChange: (deg: number) => void }) {
+export function AngleDial({
+  label,
+  value,
+  onChange,
+  info,
+}: {
+  label: string;
+  value: number;
+  onChange: (deg: number) => void;
+  info?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const set = (clientX: number, clientY: number) => {
     const r = ref.current!.getBoundingClientRect();
@@ -201,7 +373,7 @@ export function AngleDial({ label, value, onChange }: { label: string; value: nu
   return (
     <div className="field">
       <div className="field-head">
-        <span className="label">{label}</span>
+        <LabelText info={info}>{label}</LabelText>
         <span className="value">{value}°</span>
       </div>
       <div className="angle-row">
@@ -257,16 +429,18 @@ export function DualRange({
   low,
   high,
   onChange,
+  info,
 }: {
   label: string;
   low: number;
   high: number;
   onChange: (low: number, high: number) => void;
+  info?: string;
 }) {
   return (
     <div className="field">
       <div className="field-head">
-        <span className="label">{label}</span>
+        <LabelText info={info}>{label}</LabelText>
         <span className="value">
           {low}–{high}%
         </span>

@@ -3,7 +3,8 @@ import { newKey } from '../../../shared/effects.ts';
 import { BUILTIN_PRESETS } from '../../../shared/presets.ts';
 import { sanitizePresets } from '../../../shared/stack.ts';
 import type { EffectStack, Preset, Scene } from '../../../shared/types.ts';
-import { Section } from './controls.tsx';
+import { HELP } from '../help.ts';
+import { InfoTip, Panel } from './controls.tsx';
 import { TrashIcon } from './GradientEditor.tsx';
 import { StackThumb } from './Thumb.tsx';
 
@@ -123,8 +124,10 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
   };
 
   return (
-    <Section
+    <Panel
+      id="presets"
       title="Presets"
+      info={HELP.presets}
       aside={
         <div className="preset-actions">
           <button type="button" className="ghost-btn" onClick={() => fileInput.current?.click()}>
@@ -233,12 +236,16 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
 
       {scene.presets.length > 0 && (
         <>
-          <h4 className="sub-head">Yours</h4>
+          <h4 className="sub-head">
+            Yours <InfoTip text={HELP.yours} label="Your presets" />
+          </h4>
           <div className="preset-grid">{scene.presets.map(card)}</div>
         </>
       )}
-      <h4 className="sub-head">Built-in</h4>
+      <h4 className="sub-head">
+        Built-in <InfoTip text={HELP.builtIn} label="Built-in presets" />
+      </h4>
       <div className="preset-grid">{BUILTIN_PRESETS.map(card)}</div>
-    </Section>
+    </Panel>
   );
 }

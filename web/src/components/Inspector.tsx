@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BUILTIN_PRESETS } from '../../../shared/presets.ts';
 import type { ColorOrder, Scene, ZoneRuntime, ZoneSettings } from '../../../shared/types.ts';
-import { Section, Slider, Stepper, Toggle } from './controls.tsx';
+import { HELP } from '../help.ts';
+import { InfoTip, Row, Section, Slider, Stepper, Toggle } from './controls.tsx';
 import { Presets } from './Presets.tsx';
 import { StackEditor } from './StackEditor.tsx';
 
@@ -11,12 +12,6 @@ const KIND_TEXT = { ram: 'RAM stick', fans: 'Addressable RGB header', gpu: 'Grap
 export function GlobalInspector({ scene, update }: { scene: Scene; update: (m: (s: Scene) => void) => void }) {
   return (
     <div className="inspector">
-      <div className="inspector-head">
-        <div>
-          <h2>All zones</h2>
-          <p>Zones set to Follow global use this effect.</p>
-        </div>
-      </div>
       <Presets scene={scene} update={update} />
       <StackEditor
         stack={scene.effect}
@@ -35,11 +30,13 @@ export function ZoneInspector({
   scene,
   update,
   identify,
+  onBack,
 }: {
   zone: ZoneRuntime;
   scene: Scene;
   update: (m: (s: Scene) => void) => void;
   identify: (id: string) => void;
+  onBack: () => void;
 }) {
   const s = scene.zones[zone.id];
   const [name, setName] = useState(s.label || zone.name);
@@ -53,6 +50,9 @@ export function ZoneInspector({
 
   return (
     <div className="inspector">
+      <button type="button" className="back-link" onClick={onBack}>
+        ← All zones
+      </button>
       <div className="inspector-head">
         <div className="grow">
           <input
@@ -71,22 +71,21 @@ export function ZoneInspector({
       </div>
 
       <Section title="Output">
-        <Slider label="Brightness" value={s.brightness} onChange={(brightness) => set({ brightness })} />
-        <div className="row">
-          <div>
-            <div className="row-title">Follow global effect</div>
-            <div className="row-sub">Turn off to give this zone its own effect.</div>
-          </div>
+        <Slider label="Brightness" info={HELP.zoneBrightness} value={s.brightness} onChange={(brightness) => set({ brightness })} />
+        <Row title="Follow global effect" sub="Turn off to give this zone its own effect." info={HELP.follow}>
           <Toggle
             checked={s.synced}
             label="Follow global effect"
             onChange={(synced) => set(synced ? { synced } : { synced, effect: structuredClone(scene.effect) })}
           />
-        </div>
+        </Row>
         {!s.synced && (
           <div className="field">
             <div className="field-head">
-              <label htmlFor="zone-preset">Start from a preset</label>
+              <span className="label-wrap">
+                <label htmlFor="zone-preset">Start from a preset</label>
+                <InfoTip text={HELP.zonePreset} label="Start from a preset" />
+              </span>
             </div>
             <select
               id="zone-preset"
@@ -111,28 +110,45 @@ export function ZoneInspector({
         )}
       </Section>
 
-      {!s.synced && <StackEditor stack={s.effect} onChange={(effect) => set({ effect })} />}
+      {!s.synced && <StackEditor panelId="customize-zone" stack={s.effect} onChange={(effect) => set({ effect })} />}
 
       <Section
         title="Hardware"
-        collapsible
-        defaultOpen={zone.configurable}
         aside={
-          <button type="button" className="ghost-btn" onClick={() => identify(zone.id)}>
-            Identify
-          </button>
+          <span className="label-wrap">
+            <button type="button" className="ghost-btn" onClick={() => identify(zone.id)}>
+              Identify
+            </button>
+            <InfoTip text={HELP.identify} label="Identify" />
+          </span>
         }
       >
         {zone.configurable && (
           <>
-            <Stepper label="LEDs connected" value={s.ledCount ?? 40} min={1} max={zone.maxLeds} onChange={(ledCount) => set({ ledCount })} />
-            <Stepper label="Fans on this header" value={s.fanCount ?? 1} min={0} max={8} onChange={(fanCount) => set({ fanCount })} />
-            <p className="hint">Set fans to 0 for an LED strip. Identify runs a white chase along this zone.</p>
+            <Stepper
+              label="LEDs connected"
+              info={HELP.ledsConnected}
+              value={s.ledCount ?? 40}
+              min={1}
+              max={zone.maxLeds}
+              onChange={(ledCount) => set({ ledCount })}
+            />
+            <Stepper
+              label="Fans on this header"
+              info={HELP.fansOnHeader}
+              value={s.fanCount ?? 1}
+              min={0}
+              max={8}
+              onChange={(fanCount) => set({ fanCount })}
+            />
           </>
         )}
         <div className="field">
           <div className="field-head">
-            <label htmlFor="order">Color order</label>
+            <span className="label-wrap">
+              <label htmlFor="order">Color order</label>
+              <InfoTip text={HELP.colorOrder} label="Color order" />
+            </span>
           </div>
           <select id="order" className="select" value={s.colorOrder} onChange={(e) => set({ colorOrder: e.target.value as ColorOrder })}>
             {ORDERS.map((o) => (
@@ -142,7 +158,6 @@ export function ZoneInspector({
               </option>
             ))}
           </select>
-          <p className="hint">If red shows up as green, try GRB.</p>
         </div>
       </Section>
     </div>

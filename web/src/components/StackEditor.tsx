@@ -2,12 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import { BLENDS, CURVES, EFFECT_BY_ID, EFFECTS, makeLayer, newKey } from '../../../shared/effects.ts';
 import { MAX_LAYERS } from '../../../shared/stack.ts';
 import type { EffectId, EffectStack, Layer } from '../../../shared/types.ts';
-import { AngleDial, DualRange, Section, Segmented, Slider, Toggle } from './controls.tsx';
+import { HELP } from '../help.ts';
+import { AngleDial, DualRange, InfoTip, Panel, Section, Segmented, Slider, Toggle } from './controls.tsx';
 import { GradientEditor, TrashIcon } from './GradientEditor.tsx';
 import { StackThumb } from './Thumb.tsx';
 
-/** Edit a stack of effect layers: layer list on top, the selected layer's controls below. */
-export function StackEditor({ stack, onChange }: { stack: EffectStack; onChange: (s: EffectStack) => void }) {
+/**
+ * The Customize panel: layer list on top, the selected layer's controls below.
+ * `panelId` keeps the open/closed state separate for the global and per-zone editors.
+ */
+export function StackEditor({
+  stack,
+  onChange,
+  panelId = 'customize',
+}: {
+  stack: EffectStack;
+  onChange: (s: EffectStack) => void;
+  panelId?: string;
+}) {
   const layers = stack.layers;
   const [selKey, setSelKey] = useState(layers[layers.length - 1]?.key);
   useEffect(() => {
@@ -27,9 +39,10 @@ export function StackEditor({ stack, onChange }: { stack: EffectStack; onChange:
   };
 
   return (
-    <>
+    <Panel id={panelId} title="Customize" info={HELP.customize}>
       <Section
         title="Layers"
+        info={HELP.layers}
         aside={
           <button
             type="button"
@@ -108,7 +121,7 @@ export function StackEditor({ stack, onChange }: { stack: EffectStack; onChange:
       </Section>
 
       {layer && <LayerEditor key={layer.key} layer={layer} isBase={selIndex === 0} onChange={(p) => patch(selIndex, p)} />}
-    </>
+    </Panel>
   );
 }
 
@@ -146,7 +159,7 @@ function LayerEditor({ layer, isBase, onChange }: { layer: Layer; isBase: boolea
 
   return (
     <>
-      <Section title="Effect" collapsible>
+      <Section title="Effect" info={HELP.effect}>
         <div className="effect-grid" role="radiogroup" aria-label="Effect">
           {EFFECTS.map((e) => (
             <button
@@ -166,75 +179,82 @@ function LayerEditor({ layer, isBase, onChange }: { layer: Layer; isBase: boolea
         <p className="blurb">{meta.blurb}</p>
       </Section>
 
-      <Section title="Colors" collapsible>
+      <Section title="Colors" info={HELP.colors}>
         <GradientEditor value={layer.palette} onChange={(palette) => onChange({ palette })} />
-        <p className="hint">Click the bar to add a stop. Drag a stop to move it, or pull it down off the bar to remove it.</p>
       </Section>
 
       {(u.speed || u.size || u.angle || u.curve) && (
-        <Section title="Motion" collapsible>
+        <Section title="Motion">
           {u.speed && (
             <div className="row-tight">
               <div className="grow">
-                <Slider label="Speed" value={layer.speed} onChange={(speed) => onChange({ speed })} />
+                <Slider label="Speed" info={HELP.speed} value={layer.speed} onChange={(speed) => onChange({ speed })} />
               </div>
-              <label className="mini-toggle">
-                <span>Reverse</span>
+              <div className="mini-toggle">
+                <span className="label-wrap">
+                  <span>Reverse</span>
+                  <InfoTip text={HELP.reverse} label="Reverse" />
+                </span>
                 <Toggle checked={layer.reverse} label="Reverse direction" onChange={(reverse) => onChange({ reverse })} />
-              </label>
+              </div>
             </div>
           )}
           {u.curve && (
             <Segmented
               label={meta.curveLabel ?? 'Curve'}
+              info={HELP.curve}
               value={layer.curve}
               options={CURVES.map((c) => ({ value: c.value, label: c.label, title: c.title }))}
               onChange={(curve) => onChange({ curve })}
             />
           )}
-          {u.size && <Slider label={meta.sizeLabel ?? 'Size'} value={layer.size} onChange={(size) => onChange({ size })} />}
-          {u.angle && <AngleDial label="Direction" value={layer.angle} onChange={(angle) => onChange({ angle })} />}
+          {u.size && (
+            <Slider label={meta.sizeLabel ?? 'Size'} info={HELP.size} value={layer.size} onChange={(size) => onChange({ size })} />
+          )}
+          {u.angle && <AngleDial label="Direction" info={HELP.direction} value={layer.angle} onChange={(angle) => onChange({ angle })} />}
         </Section>
       )}
 
-      <Section title="Light" collapsible>
+      <Section title="Light">
         {u.intensity && (
-          <Slider label="Contrast" value={layer.intensity} onChange={(intensity) => onChange({ intensity })} />
+          <Slider label="Contrast" info={HELP.contrast} value={layer.intensity} onChange={(intensity) => onChange({ intensity })} />
         )}
         <DualRange
           label="Brightness range"
+          info={HELP.brightnessRange}
           low={layer.minBrightness}
           high={layer.maxBrightness}
           onChange={(minBrightness, maxBrightness) => onChange({ minBrightness, maxBrightness })}
         />
-        <Slider label="Hue drift" value={layer.hueDrift} max={180} suffix="°" onChange={(hueDrift) => onChange({ hueDrift })} />
-        <p className="hint">Hue drift slowly sways every color around the color wheel by up to this many degrees.</p>
+        <Slider
+          label="Hue drift"
+          info={HELP.hueDrift}
+          value={layer.hueDrift}
+          max={180}
+          suffix="°"
+          onChange={(hueDrift) => onChange({ hueDrift })}
+        />
       </Section>
 
       {u.spread && (
-        <Section title="Sync" collapsible>
-          <Slider label="Offset between devices" value={layer.spread} onChange={(spread) => onChange({ spread })} />
-          <p className="hint">0% keeps fans, RAM and GPU in lockstep. Higher values stagger each zone through the cycle.</p>
+        <Section title="Sync">
+          <Slider label="Offset between devices" info={HELP.spread} value={layer.spread} onChange={(spread) => onChange({ spread })} />
         </Section>
       )}
 
-      {!isBase && (
-        <Section title="Blending" collapsible>
+      <Section title="Blending">
+        {!isBase && (
           <Segmented
             label="Blend mode"
+            info={HELP.blend}
             value={layer.blend}
             options={BLENDS.map((b) => ({ value: b.value, label: b.label }))}
             onChange={(blend) => onChange({ blend })}
           />
-          <Slider label="Opacity" value={layer.opacity} onChange={(opacity) => onChange({ opacity })} />
-        </Section>
-      )}
-      {isBase && (
-        <Section title="Blending" collapsible defaultOpen={false}>
-          <Slider label="Opacity" value={layer.opacity} onChange={(opacity) => onChange({ opacity })} />
-          <p className="hint">The bottom layer is the base. Layers above it blend onto it.</p>
-        </Section>
-      )}
+        )}
+        <Slider label="Opacity" info={HELP.opacity} value={layer.opacity} onChange={(opacity) => onChange({ opacity })} />
+        {isBase && <p className="hint">This is the base layer. Layers you add above it blend onto it.</p>}
+      </Section>
     </>
   );
 }

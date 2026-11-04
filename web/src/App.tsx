@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Toggle } from './components/controls.tsx';
+import { Panel, Toggle } from './components/controls.tsx';
+import { HELP } from './help.ts';
 import { GlobalInspector, ZoneInspector } from './components/Inspector.tsx';
 import { Stage } from './components/Stage.tsx';
 import { DeviceList, ZoneList } from './components/ZoneList.tsx';
@@ -63,19 +64,21 @@ export function App() {
       ) : (
         <main className="layout">
           <aside className="sidebar">
-            <ZoneList
-              scene={scene}
-              zones={zones}
-              frames={frames}
-              selected={selected}
-              onSelect={setSelected}
-              onToggle={(id, on) =>
-                updateScene((s) => {
-                  s.zones[id].enabled = on;
-                })
-              }
-            />
-            <DeviceList devices={devices} demo={demo} />
+            <Panel id="zones" title="Zones" info={HELP.zones} className="zones-panel">
+              <ZoneList
+                scene={scene}
+                zones={zones}
+                frames={frames}
+                selected={selected}
+                onSelect={setSelected}
+                onToggle={(id, on) =>
+                  updateScene((s) => {
+                    s.zones[id].enabled = on;
+                  })
+                }
+              />
+              <DeviceList devices={devices} demo={demo} />
+            </Panel>
           </aside>
 
           <section className="stage-wrap" aria-label="Preview">
@@ -92,7 +95,14 @@ export function App() {
 
           <aside className="panel">
             {zone ? (
-              <ZoneInspector key={zone.id} zone={zone} scene={scene} update={updateScene} identify={identify} />
+              <ZoneInspector
+                key={zone.id}
+                zone={zone}
+                scene={scene}
+                update={updateScene}
+                identify={identify}
+                onBack={() => setSelected(null)}
+              />
             ) : (
               <GlobalInspector scene={scene} update={updateScene} />
             )}

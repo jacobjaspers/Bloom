@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { DeviceStatus, Scene, ZoneKind, ZoneRuntime } from '../../../shared/types.ts';
 import { fitCanvas, subscribeFrame } from '../frameLoop.ts';
 import type { FrameStore } from '../useLumen.ts';
-import { Toggle } from './controls.tsx';
+import { HELP } from '../help.ts';
+import { InfoTip, Toggle } from './controls.tsx';
 
 const KIND_LABEL: Record<ZoneKind, string> = { fans: 'Fans', ram: 'Memory', gpu: 'Graphics', accent: 'Board' };
 
@@ -91,7 +92,11 @@ export function ZoneList({
 export function DeviceList({ devices, demo }: { devices: DeviceStatus[]; demo: boolean }) {
   return (
     <div className="devices">
-      <h4>Hardware{demo && <span className="pill">demo</span>}</h4>
+      <h4>
+        Hardware
+        <InfoTip text={HELP.hardware} label="Hardware" />
+        {demo && <span className="pill">demo</span>}
+      </h4>
       {devices.map((d) => (
         <div key={d.id} className={`device ${d.state}`}>
           <span className="dot" aria-hidden="true" />
