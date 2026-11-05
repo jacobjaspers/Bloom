@@ -189,23 +189,14 @@ code {
 
 /* ---- layout ----------------------------------------------------------------- */
 
+/* Case display on the left; Zones, Presets and Customize stacked on the right. */
 .layout {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 264px minmax(0, 1fr) 404px;
+  grid-template-columns: minmax(0, 1fr) 420px;
 }
 
-.layout {
-  transition: grid-template-columns 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-/* Folding Zones hands its column back to the case display. */
-.layout:has(.zones-panel.closed) {
-  grid-template-columns: 168px minmax(0, 1fr) 404px;
-}
-
-.sidebar,
 .panel {
   min-height: 0;
   overflow-y: auto;
@@ -213,12 +204,22 @@ code {
   scrollbar-color: var(--surface-3) transparent;
 }
 
-.sidebar {
-  border-right: 1px solid var(--border);
-  padding: 16px 12px;
+.side-col {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
+  padding: 16px;
+}
+
+/* The zone settings / global editor sit flush inside the column. */
+.side-col > .inspector {
+  padding: 0;
+  gap: 16px;
+}
+
+.zones-panel .panel-body {
+  gap: 14px;
+  padding: 10px 8px 12px;
 }
 
 .panel {
@@ -941,11 +942,6 @@ code {
   flex-direction: column;
   gap: 22px;
   padding: 16px 14px 18px;
-}
-
-.sidebar .panel-body {
-  gap: 16px;
-  padding: 10px 8px 12px;
 }
 
 .section-title {
@@ -1772,15 +1768,15 @@ button,
   animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-.intro .sidebar .panel-block {
+.intro .zones-panel {
   animation-delay: 0.5s;
 }
 
-.intro .panel .panel-block:nth-child(1) {
+.intro .inspector .panel-block:nth-child(1) {
   animation-delay: 0.7s;
 }
 
-.intro .panel .panel-block:nth-child(2) {
+.intro .inspector .panel-block:nth-child(2) {
   animation-delay: 0.85s;
 }
 
@@ -1867,19 +1863,14 @@ button,
     height: 56vh;
     order: -1;
   }
-  .sidebar,
   .panel {
     flex: none;
-  }
-  .sidebar,
-  .panel {
     overflow: visible;
     border: 0;
     background: none;
-    padding: 0 12px 12px;
   }
-  .panel .inspector {
-    padding: 0;
+  .side-col {
+    padding: 0 12px 12px;
   }
   .master-bright .slider {
     width: 110px;

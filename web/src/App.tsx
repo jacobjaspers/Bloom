@@ -89,24 +89,6 @@ export function App() {
         </main>
       ) : (
         <main className="layout">
-          <aside className="sidebar">
-            <Panel id="zones" title="Zones" info={HELP.zones} className="zones-panel">
-              <ZoneList
-                scene={scene}
-                zones={zones}
-                frames={frames}
-                selected={selected}
-                onSelect={setSelected}
-                onToggle={(id, on) =>
-                  updateScene((s) => {
-                    s.zones[id].enabled = on;
-                  })
-                }
-              />
-              <DeviceList devices={devices} demo={demo} />
-            </Panel>
-          </aside>
-
           <section className="stage-wrap" aria-label="Preview">
             <Stage
               scene={scene}
@@ -131,18 +113,35 @@ export function App() {
           </section>
 
           <aside className="panel">
-            {zone ? (
-              <ZoneInspector
-                key={zone.id}
-                zone={zone}
-                scene={scene}
-                update={updateScene}
-                identify={identify}
-                onBack={() => setSelected(null)}
-              />
-            ) : (
-              <GlobalInspector scene={scene} update={updateScene} />
-            )}
+            <div className="side-col">
+              <Panel id="zones" title="Zones" info={HELP.zones} className="zones-panel">
+                <ZoneList
+                  scene={scene}
+                  zones={zones}
+                  frames={frames}
+                  selected={selected}
+                  onSelect={setSelected}
+                  onToggle={(id, on) =>
+                    updateScene((s) => {
+                      s.zones[id].enabled = on;
+                    })
+                  }
+                />
+                <DeviceList devices={devices} demo={demo} />
+              </Panel>
+              {zone ? (
+                <ZoneInspector
+                  key={zone.id}
+                  zone={zone}
+                  scene={scene}
+                  update={updateScene}
+                  identify={identify}
+                  onBack={() => setSelected(null)}
+                />
+              ) : (
+                <GlobalInspector scene={scene} update={updateScene} />
+              )}
+            </div>
           </aside>
         </main>
       )}

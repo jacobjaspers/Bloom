@@ -138,6 +138,13 @@ export function Stage(props: Props) {
     const p = placementOf(editSel);
     setPlacement(editSel, { ...p, x: p.x + dx, y: p.y + dy });
   };
+  /** Leave the editor and put the side panel back on Presets / Customize. */
+  const finishEditing = () => {
+    setEditing(false);
+    setEditSel(null);
+    onSelect(null);
+  };
+
   const resetAll = () => {
     remember();
     onSetLayout({ zones: Object.fromEntries(Object.keys(scene.zones).map((id) => [id, undefined])), parts: {} });
@@ -172,7 +179,7 @@ export function Stage(props: Props) {
     if (k === 'r') return rotate();
     if (k === '+' || k === '=') return resize(1.1);
     if (k === '-' || k === '_') return resize(1 / 1.1);
-    if (k === 'escape') return setEditing(false);
+    if (k === 'escape') return finishEditing();
     const step = e.shiftKey ? 2 : 0.5;
     const arrows: Record<string, [number, number]> = {
       arrowleft: [-step, 0],
@@ -361,7 +368,7 @@ export function Stage(props: Props) {
                 Reset
               </button>
             )}
-            <button type="button" className="primary-btn" onClick={() => setEditing(false)}>
+            <button type="button" className="primary-btn" onClick={finishEditing}>
               Done
             </button>
           </>
