@@ -47,6 +47,10 @@ RAM is controlled over SMBus, which Windows only exposes to kernel drivers. Lume
 2. Put `SmbusI801.bin` (from the [PawnIO.Modules releases](https://github.com/namazso/PawnIO.Modules/releases)) in `server/smbus/modules/`.
 3. Start Lumen as **administrator**. Double-clicking `start-lumen.cmd` does this for you and opens the panel.
 
+### Desktop shortcut
+
+`scripts/install-shortcut.ps1` adds a **Lumen** shortcut (with the Lumen icon) to the desktop and Start menu. It opens the control panel in its own app window, with no tabs or address bar, and starts the Lumen service first if it isn't running.
+
 ### Start at sign-in
 
 `scripts/install-autostart.ps1` (run in an admin PowerShell) registers a **Lumen RGB** scheduled task. It starts Lumen hidden, with admin rights, 10 seconds after you sign in, and restarts it if it crashes. The log goes to `%LOCALAPPDATA%\Lumen\lumen.log`. `scripts/uninstall-autostart.ps1` removes the task. With the task running, `start-lumen.cmd` just opens the panel.
