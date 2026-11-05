@@ -95,6 +95,15 @@ export interface ZoneSettings {
   /** ARGB only: how many fans the LEDs are split across (for layout). */
   fanCount?: number;
   colorOrder: ColorOrder;
+  /** Build editor: where this part sits in the case, if the user moved it. */
+  place?: Placement;
+}
+
+/** Where the user placed a zone in the Build editor: its centre, plus quarter turns. */
+export interface Placement {
+  x: number;
+  y: number;
+  rot: 0 | 1 | 2 | 3;
 }
 
 export interface Scene {

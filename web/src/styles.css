@@ -1495,6 +1495,58 @@ code {
   text-overflow: ellipsis;
 }
 
+/* ---- Build editor toolbar ------------------------------------------------------ */
+
+.stage-tools {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 14px;
+  transition: background 0.25s, box-shadow 0.25s, padding 0.25s;
+  z-index: 2;
+}
+
+.stage-tools.editing {
+  padding: 6px 6px 6px 14px;
+  background: rgba(18, 20, 30, 0.82);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(139, 123, 255, 0.35);
+  box-shadow: 0 12px 40px -16px rgba(139, 123, 255, 0.6);
+  animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.stage-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.ghost-btn.glass {
+  background: rgba(13, 15, 21, 0.6);
+  backdrop-filter: blur(8px);
+}
+
+.stage.editing {
+  outline: 1px dashed rgba(139, 123, 255, 0.25);
+  outline-offset: -6px;
+  border-radius: 14px;
+}
+
+.stage.editing:focus-visible {
+  outline-style: solid;
+}
+
+@media (max-width: 560px) {
+  .stage-hint {
+    display: none;
+  }
+}
+
 /* ---- ambient edges ------------------------------------------------------------ */
 
 .ambient-on .topbar {

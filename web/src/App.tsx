@@ -116,6 +116,16 @@ export function App() {
               selected={selected}
               onSelect={setSelected}
               intro={intro === 'playing'}
+              onPlace={(id, place) =>
+                updateScene((sc) => {
+                  if (sc.zones[id]) sc.zones[id].place = place;
+                })
+              }
+              onResetLayout={() =>
+                updateScene((sc) => {
+                  for (const z of Object.values(sc.zones)) delete z.place;
+                })
+              }
             />
             {!scene.power && <div className="stage-off">Lighting is off</div>}
           </section>

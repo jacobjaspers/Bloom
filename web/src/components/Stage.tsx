@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { layoutScene, SCENE, SCENE_H, SCENE_W, type ZoneLayout } from '../../../shared/layout.ts';
-import type { DeviceStatus, Scene, ZoneRuntime } from '../../../shared/types.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { clampPlacement, layoutScene, SCENE, SCENE_H, SCENE_W, zoneCenter, type ZoneLayout } from '../../../shared/layout.ts';
+import type { DeviceStatus, Placement, Scene, ZoneRuntime } from '../../../shared/types.ts';
+import { HELP } from '../help.ts';
+import { InfoTip } from './controls.tsx';
 import { fitCanvas, subscribeFrame } from '../frameLoop.ts';
 import type { FrameStore } from '../useLumen.ts';
 
@@ -13,6 +15,9 @@ interface Props {
   onSelect: (zoneId: string | null) => void;
   /** True while the dashboard's startup sequence is playing. */
   intro: boolean;
+  /** Build editor: move/rotate a part, or clear every placement. */
+  onPlace: (zoneId: string, place: Placement) => void;
+  onResetLayout: () => void;
 }
 
 const ACCENT = '#8b7bff';
@@ -24,15 +29,17 @@ const smoothstep = (e0: number, e1: number, x: number) => {
 };
 
 export function Stage(props: Props) {
-  const { scene, zones, devices, frames, selected, onSelect, intro } = props;
+  const { scene, zones, devices, frames, selected, onSelect, intro, onPlace, onResetLayout } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
   const hover = useRef<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const layouts = useMemo(() => layoutScene(zones, scene.zones), [zones, scene.zones]);
-  const live = useRef({ layouts, zones, scene, devices, selected });
-  live.current = { layouts, zones, scene, devices, selected };
+  const live = useRef({ layouts, zones, scene, devices, selected, editing });
+  live.current = { layouts, zones, scene, devices, selected, editing };
   const geo = useRef({ s: 1, ox: 0, oy: 0 });
   const introStart = useRef<number | null>(null);
   if (intro && introStart.current === null) introStart.current = performance.now();
+  const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; rot: Placement['rot']; moved: boolean } | null>(null);
 
   useEffect(
     () =>
@@ -47,31 +54,102 @@ export function Stage(props: Props) {
     [frames],
   );
 
-  const hit = (e: { clientX: number; clientY: number }): string | null => {
+  const toScene = (e: { clientX: number; clientY: number }) => {
     const r = canvas.current!.getBoundingClientRect();
     const { s, ox, oy } = geo.current;
-    const x = (e.clientX - r.left - ox) / s;
-    const y = (e.clientY - r.top - oy) / s;
+    return { x: (e.clientX - r.left - ox) / s, y: (e.clientY - r.top - oy) / s };
+  };
+
+  const hit = (e: { clientX: number; clientY: number }): string | null => {
+    const { x, y } = toScene(e);
     for (const l of [...live.current.layouts].reverse()) {
-      const b = l.bounds;
-      if (x >= b.x - 1 && x <= b.x + b.w + 1 && y >= b.y - 1 && y <= b.y + b.h + 1) return l.zoneId;
+      for (const b of l.body ? [l.bounds, l.body] : [l.bounds]) {
+        if (x >= b.x - 1 && x <= b.x + b.w + 1 && y >= b.y - 1 && y <= b.y + b.h + 1) return l.zoneId;
+      }
     }
     return null;
   };
 
+  const selLayout = editing && selected ? layouts.find((l) => l.zoneId === selected) : undefined;
+  const rotateSelected = () => {
+    if (!selLayout) return;
+    const c = zoneCenter(selLayout);
+    const cur = scene.zones[selLayout.zoneId]?.place;
+    onPlace(selLayout.zoneId, clampPlacement({ x: cur?.x ?? c.x, y: cur?.y ?? c.y, rot: (((cur?.rot ?? 0) + 1) % 4) as Placement['rot'] }));
+  };
+
   return (
-    <canvas
-      ref={canvas}
-      className="stage"
-      role="img"
-      aria-label="Live preview of your PC lighting. Click a fan group or RAM stick to select it."
-      onPointerMove={(e) => {
-        hover.current = hit(e);
-        canvas.current!.style.cursor = hover.current ? 'pointer' : 'default';
-      }}
-      onPointerLeave={() => (hover.current = null)}
-      onClick={(e) => onSelect(hit(e))}
-    />
+    <>
+      <canvas
+        ref={canvas}
+        className={`stage ${editing ? 'editing' : ''}`}
+        role="img"
+        aria-label={
+          editing
+            ? 'Layout editor. Drag a part to move it.'
+            : 'Live preview of your PC lighting. Click a fan group or RAM stick to select it.'
+        }
+        onPointerDown={(e) => {
+          if (!editing) return;
+          const id = hit(e);
+          if (!id) return;
+          const l = layouts.find((x) => x.zoneId === id)!;
+          const c = zoneCenter(l);
+          const cur = scene.zones[id]?.place;
+          const p = toScene(e);
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+          drag.current = { id, sx: p.x, sy: p.y, ox: cur?.x ?? c.x, oy: cur?.y ?? c.y, rot: cur?.rot ?? 0, moved: false };
+          onSelect(id);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (d) {
+            const p = toScene(e);
+            const dx = p.x - d.sx, dy = p.y - d.sy;
+            if (!d.moved && Math.hypot(dx, dy) < 0.6) return;
+            d.moved = true;
+            const snap = (v: number) => Math.round(v * 2) / 2;
+            onPlace(d.id, clampPlacement({ x: snap(d.ox + dx), y: snap(d.oy + dy), rot: d.rot }));
+            return;
+          }
+          hover.current = hit(e);
+          canvas.current!.style.cursor = hover.current ? (editing ? 'grab' : 'pointer') : 'default';
+        }}
+        onPointerUp={() => (drag.current = null)}
+        onPointerLeave={() => (hover.current = null)}
+        onClick={(e) => !editing && onSelect(hit(e))}
+        onKeyDown={(e) => editing && (e.key === 'r' || e.key === 'R') && rotateSelected()}
+        tabIndex={editing ? 0 : -1}
+      />
+
+      <div className={`stage-tools ${editing ? 'editing' : ''}`}>
+        {editing ? (
+          <>
+            <span className="stage-hint">Drag parts to match your PC</span>
+            <button type="button" className="ghost-btn" disabled={!selLayout} onClick={rotateSelected} title="Rotate the selected part (R)">
+              ⟳ Rotate
+            </button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                if (window.confirm('Put every part back in its automatic position?')) onResetLayout();
+              }}
+            >
+              Reset
+            </button>
+            <button type="button" className="primary-btn" onClick={() => setEditing(false)}>
+              Done
+            </button>
+          </>
+        ) : (
+          <button type="button" className="ghost-btn glass" onClick={() => setEditing(true)} title="Move fans, RAM and the GPU to match your build">
+            ✎ Edit layout
+          </button>
+        )}
+        <InfoTip text={HELP.layout} label="Edit layout" />
+      </div>
+    </>
   );
 }
 
@@ -81,7 +159,7 @@ function draw(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  st: { layouts: ZoneLayout[]; zones: ZoneRuntime[]; scene: Scene; devices: DeviceStatus[]; selected: string | null },
+  st: { layouts: ZoneLayout[]; zones: ZoneRuntime[]; scene: Scene; devices: DeviceStatus[]; selected: string | null; editing: boolean },
   frame: Map<string, Uint8Array>,
   hoverId: string | null,
   geo: { s: number; ox: number; oy: number },
@@ -155,7 +233,8 @@ function draw(
   ctx.stroke();
   label(ctx, 'CPU', X(cpu.x + cpu.w / 2), Y(cpu.y + cpu.h / 2), s, 'rgba(255,255,255,0.18)');
 
-  const gpu = SCENE.gpu;
+  // The graphics card moves with its logo zone in the Build editor.
+  const gpu = st.layouts.find((l) => l.body)?.body ?? SCENE.gpu;
   roundRect(ctx, X(gpu.x), Y(gpu.y), gpu.w * s, gpu.h * s, 1 * s);
   ctx.fillStyle = '#12141b';
   ctx.fill();
@@ -288,16 +367,21 @@ function draw(
     }
   }
 
-  // Selection + hover outlines and labels.
+  // Selection + hover outlines and labels. In the Build editor every part is outlined.
   for (const l of st.layouts) {
     const isSel = l.zoneId === st.selected;
     const isHover = l.zoneId === hoverId;
-    if (!isSel && !isHover) continue;
-    const bb = l.bounds;
+    if (!isSel && !isHover && !st.editing) continue;
+    const bb = l.body ? unionRect(l.bounds, l.body) : l.bounds;
     const pad = 1.4;
     roundRect(ctx, X(bb.x - pad), Y(bb.y - pad), (bb.w + pad * 2) * s, (bb.h + pad * 2) * s, 1.6 * s);
     ctx.save();
-    if (isSel) {
+    if (st.editing && !isSel && !isHover) {
+      ctx.setLineDash([2, 4]);
+      ctx.strokeStyle = 'rgba(160,150,255,0.35)';
+      ctx.fillStyle = 'rgba(139,123,255,0.05)';
+      ctx.fill();
+    } else if (isSel) {
       // Selected: a softly breathing glow.
       ctx.shadowColor = ACCENT;
       ctx.shadowBlur = 8 + 6 * Math.sin(now / 420);
@@ -316,6 +400,11 @@ function draw(
     const ly = bb.y - pad - 1.6 < 2 ? bb.y + bb.h + pad + 2.4 : bb.y - pad - 1.6;
     label(ctx, name, X(bb.x + bb.w / 2), Y(ly), s, isSel ? '#d9d3ff' : 'rgba(255,255,255,0.6)', 600);
   }
+}
+
+function unionRect(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) {
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
 /** Average color of the LEDs belonging to fan `group` within a zone. */

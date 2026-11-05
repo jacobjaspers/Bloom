@@ -6,6 +6,7 @@ export const HELP = {
   presets: 'Ready-made looks. Click one to apply it to all zones. Save your own from the Customize panel.',
   customize: 'Build the look yourself. Pick an effect, choose its colors, and tune how it moves.',
   hardware: 'The lighting controllers Lumen found and whether each is connected.',
+  layout: 'Move the fans, RAM and GPU on this picture so it matches your PC. Effects follow the new positions on your real lights too.',
   ambient: 'Tints this window with the live colors of your lights, like a TV glowing on the wall behind it. Only affects the app, not your PC.',
 
   // Presets

@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { BUILTIN_PRESETS } from '../shared/presets.ts';
 import { sanitizePresets, sanitizeStack } from '../shared/stack.ts';
-import type { ColorOrder, EffectStack, Scene, ZoneInfo, ZoneSettings } from '../shared/types.ts';
+import { clampPlacement } from '../shared/layout.ts';
+import type { ColorOrder, EffectStack, Placement, Scene, ZoneInfo, ZoneSettings } from '../shared/types.ts';
 
 const dir = path.join(process.env.APPDATA ?? path.join(os.homedir(), '.config'), 'Lumen');
 let file = path.join(dir, 'scene.json');
@@ -89,6 +90,12 @@ export function reconcile(scene: Scene, zones: ZoneInfo[]): Scene {
     s.brightness = clamp(s.brightness, 0, 100, 100);
     s.effect = sanitizeStack(s.effect, () => structuredClone(next.effect));
     if (!ORDERS.includes(s.colorOrder)) s.colorOrder = 'RGB';
+    const p = s.place as Partial<Placement> | undefined;
+    if (p && typeof p.x === 'number' && typeof p.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+      s.place = clampPlacement({ x: p.x, y: p.y, rot: (typeof p.rot === 'number' ? p.rot : 0) as Placement['rot'] });
+    } else {
+      delete s.place;
+    }
     next.zones[z.id] = s;
   }
   return next;

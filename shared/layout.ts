@@ -2,7 +2,9 @@
 // Both the effect engine (server) and the stage preview (web) use this, so the
 // animation you see in the UI is computed over the same geometry as the hardware.
 
-import type { ZoneRuntime, ZoneSettings } from './types.ts';
+import type { Placement, ZoneRuntime, ZoneSettings } from './types.ts';
+
+export type { Placement };
 
 /** Scene size in layout units (4:3). */
 export const SCENE_W = 100;
@@ -33,8 +35,18 @@ export interface ZoneLayout {
   points: LedPoint[];
   shapes: Shape[];
   /** Bounding box used for hit-testing in the UI. */
-  bounds: { x: number; y: number; w: number; h: number };
+  bounds: Rect;
+  /** Unlit hardware body that moves with this zone (the graphics card for the GPU logo). */
+  body?: Rect;
 }
+
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 
 /** Static scene furniture drawn by the UI (not lit). */
 export const SCENE = {
@@ -104,6 +116,7 @@ export function layoutScene(
   const ramTotal = zones.filter((z) => z.kind === 'ram').length;
 
   return zones.map((z) => {
+    const base = ((): ZoneLayout => {
     const s = settings[z.id];
     const count = z.ledCount;
     if (z.kind === 'fans') {
@@ -160,6 +173,7 @@ export function layoutScene(
         points,
         shapes: [{ type: 'strip', x1, y1: y, x2, y2: y }],
         bounds: { x: x1 - 1.5, y: y - 1.5, w: x2 - x1 + 3, h: 3 },
+        body: { ...g },
       };
     }
 
@@ -192,5 +206,69 @@ export function layoutScene(
       shapes: [{ type: 'strip', x1, y1: y, x2, y2: y }],
       bounds: { x: x1 - 1, y: y - 1.5, w: x2 - x1 + 2, h: 3 },
     };
+    })();
+    return place(base, settings[z.id]?.place);
   });
+}
+
+// ---- Build editor placement ---------------------------------------------------------
+
+/** Centre of the zone in its automatic layout (what a placement is measured from). */
+export function zoneCenter(l: ZoneLayout): { x: number; y: number } {
+  const b = l.body ? union(l.bounds, l.body) : l.bounds;
+  return { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+}
+
+function union(a: Rect, b: Rect): Rect {
+  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+}
+
+/** Rotate by quarter turns around (cx, cy), then move that centre to (tx, ty). */
+function place(base: ZoneLayout, p: Placement | undefined): ZoneLayout {
+  if (!p) return base;
+  const c = zoneCenter(base);
+  const q = ((p.rot % 4) + 4) % 4;
+  const tp = (x: number, y: number) => {
+    let dx = x - c.x, dy = y - c.y;
+    for (let i = 0; i < q; i++) [dx, dy] = [-dy, dx]; // 90° clockwise on screen
+    return { x: p.x + dx, y: p.y + dy };
+  };
+  const tr = (r: Rect): Rect => {
+    const m = tp(r.x + r.w / 2, r.y + r.h / 2);
+    const [w, h] = q % 2 ? [r.h, r.w] : [r.w, r.h];
+    return { x: m.x - w / 2, y: m.y - h / 2, w, h };
+  };
+  return {
+    zoneId: base.zoneId,
+    points: base.points.map((pt0) => {
+      const m = tp(pt0.x, pt0.y);
+      return { ...pt0, x: m.x, y: m.y, nx: m.x / SCENE_W, ny: m.y / SCENE_H };
+    }),
+    shapes: base.shapes.map((s): Shape => {
+      if (s.type === 'fan') {
+        const m = tp(s.cx, s.cy);
+        return { ...s, cx: m.x, cy: m.y };
+      }
+      if (s.type === 'stick') {
+        const r = tr(s);
+        return { type: 'stick', ...r };
+      }
+      const a = tp(s.x1, s.y1), b = tp(s.x2, s.y2);
+      return { type: 'strip', x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+    }),
+    bounds: tr(base.bounds),
+    body: base.body && tr(base.body),
+  };
+}
+
+/** Keep a placement's centre inside the case. */
+export function clampPlacement(p: Placement): Placement {
+  const k = SCENE.case;
+  const r = Math.round(((p.rot % 4) + 4) % 4) as Placement['rot'];
+  return {
+    x: Math.min(k.x + k.w - 2, Math.max(k.x + 2, p.x)),
+    y: Math.min(k.y + k.h - 2, Math.max(k.y + 2, p.y)),
+    rot: r,
+  };
 }
