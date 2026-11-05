@@ -9,6 +9,19 @@ import type { LightDevice } from './devices/device.ts';
 
 const FPS = 30;
 const IDENTIFY_MS = 2400;
+/** Brightness changes (power, sliders, zone on/off) ease instead of snapping. */
+const FADE = 0.22;
+/** Switching presets sweeps the new look across the case. */
+const SWEEP_MS = 1100;
+/** At startup, zones light up one after another. */
+const INTRO_STAGGER = 0.24;
+const INTRO_ZONE = 0.75;
+const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3 } as const;
+
+const smoothstep = (e0: number, e1: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
 
 const ORDER: Record<ColorOrder, [number, number, number]> = {
   RGB: [0, 1, 2],
@@ -29,6 +42,10 @@ export class Engine {
   private identifyUntil = new Map<string, number>();
   private readonly t0 = performance.now();
   private timer: NodeJS.Timeout | null = null;
+  private level = new Map<string, number>();
+  private sweep: { from: Renderer; start: number } | null = null;
+  private introStart = 0;
+  private introOrder = new Map<string, number>();
   onFrame: ((frame: Uint8Array) => void) | null = null;
 
   constructor(devices: LightDevice[], scene: Scene) {
@@ -56,12 +73,21 @@ export class Engine {
 
   setScene(scene: Scene, persist = true): void {
     const infos = this.zoneInfos();
+    const prevPreset = this.scene.activePreset;
+    const prevRenderer = this.globalRenderer;
     this.scene = reconcile(scene, infos);
+    if (persist && this.scene.activePreset && this.scene.activePreset !== prevPreset) {
+      this.sweep = { from: prevRenderer, start: performance.now() };
+    }
     this.zones = infos.map((z) => ({
       ...z,
       ledCount: z.configurable ? (this.scene.zones[z.id].ledCount ?? z.maxLeds) : z.maxLeds,
     }));
     this.layouts = layoutScene(this.zones, this.scene.zones);
+    // Intro order: fans, then RAM, then GPU, then board accents.
+    [...this.zones]
+      .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+      .forEach((z, i) => this.introOrder.set(z.id, i));
     this.globalRenderer = createRenderer(this.scene.effect);
     this.zoneRenderers.clear();
     for (const z of this.zones) {
@@ -77,6 +103,7 @@ export class Engine {
 
   start(): void {
     if (this.timer) return;
+    this.introStart = performance.now();
     this.timer = setInterval(() => this.tick(), 1000 / FPS);
   }
 
@@ -94,32 +121,63 @@ export class Engine {
     const preview: number[] = [FRAME_MARKER];
     const hw = new Map<string, Uint8Array>();
 
+    // Preset sweep progress: a soft wipe with a bright leading edge.
+    let front = Infinity;
+    let fromRender: Renderer | null = null;
+    if (this.sweep) {
+      const p = (now - this.sweep.start) / SWEEP_MS;
+      if (p >= 1) this.sweep = null;
+      else {
+        front = -0.3 + p * 1.6;
+        fromRender = this.sweep.from;
+      }
+    }
+    const introT = (now - this.introStart) / 1000;
+
     this.zones.forEach((z, zi) => {
       const s = scene.zones[z.id];
       const layout = this.layouts[zi];
       const out = new Uint8Array(z.ledCount * 3);
       const until = this.identifyUntil.get(z.id) ?? 0;
       const identifying = until > now;
-      const k = Math.pow(master * (s.brightness / 100), 2) * (s.enabled ? 1 : 0);
+      const target = Math.pow(master * (s.brightness / 100), 2) * (s.enabled ? 1 : 0);
+      let k = this.level.get(z.id) ?? target;
+      k += (target - k) * FADE;
+      if (Math.abs(target - k) < 0.002) k = target;
+      this.level.set(z.id, k);
       const render = this.zoneRenderers.get(z.id) ?? this.globalRenderer;
+      const sweeping = fromRender && !this.zoneRenderers.has(z.id);
+      const introAt = (this.introOrder.get(z.id) ?? 0) * INTRO_STAGGER;
 
       for (let i = 0; i < z.ledCount; i++) {
         let r: number, g: number, b: number;
+        const p = layout.points[i];
         if (identifying) {
           // A white chase so you can see which header/stick this zone is.
           const head = ((now / 1000) * 1.5) % 1;
-          const p = layout.points[i];
           const d = (head - (p?.lu ?? 0) + 1) % 1;
           const v = d < 0.35 ? 255 * (1 - d / 0.35) : 18;
           r = g = b = v;
-        } else if (k === 0) {
+        } else if (k === 0 || !p) {
           r = g = b = 0;
         } else {
-          const p = layout.points[i];
-          const c = p ? render(t, p, zi) : ([0, 0, 0] as const);
-          r = c[0] * k;
-          g = c[1] * k;
-          b = c[2] * k;
+          let c = render(t, p, zi);
+          let edge = 0;
+          if (sweeping) {
+            const m = smoothstep(p.nx - 0.22, p.nx, front);
+            if (m < 1) {
+              const o = fromRender!(t, p, zi);
+              c = [o[0] + (c[0] - o[0]) * m, o[1] + (c[1] - o[1]) * m, o[2] + (c[2] - o[2]) * m];
+            }
+            const dx = (p.nx - front) / 0.07;
+            edge = Math.exp(-dx * dx) * 150;
+          }
+          // Startup: each zone fades up along its LEDs, one zone after another.
+          const reveal = introT < 4 ? smoothstep(0, 1, (introT - introAt - p.lu * 0.35) / (INTRO_ZONE - 0.35)) : 1;
+          const flash = introT < 4 ? Math.max(0, 1 - Math.abs(introT - introAt - p.lu * 0.35 - 0.2) / 0.2) * 120 : 0;
+          r = (c[0] * reveal + edge + flash) * k;
+          g = (c[1] * reveal + edge + flash) * k;
+          b = (c[2] * reveal + edge + flash) * k;
         }
         // Uint8Array wraps rather than clamps, so clamp explicitly.
         out[i * 3] = r > 255 ? 255 : r;

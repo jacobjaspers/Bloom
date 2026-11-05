@@ -302,6 +302,11 @@ export function Panel({
   className?: string;
 }) {
   const [open, setOpen] = useState(() => readOpen(id, defaultOpen));
+  // Keep the body mounted after the first open so it can animate closed and open again.
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) setMounted(true);
+  }, [open]);
   const bodyId = useId();
   const toggle = () => {
     setOpen((o) => {
@@ -323,11 +328,15 @@ export function Panel({
         {info && <InfoTip text={info} label={title} />}
         <span className="panel-aside">{open && aside}</span>
       </header>
-      {open && (
-        <div id={bodyId} className="panel-body">
-          {children}
+      <div className="panel-collapse" data-open={open} inert={!open}>
+        <div className="panel-collapse-inner">
+          {mounted && (
+            <div id={bodyId} className="panel-body">
+              {children}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   );
 }

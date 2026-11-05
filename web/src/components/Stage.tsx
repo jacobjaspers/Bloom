@@ -11,27 +11,38 @@ interface Props {
   frames: FrameStore;
   selected: string | null;
   onSelect: (zoneId: string | null) => void;
+  /** True while the dashboard's startup sequence is playing. */
+  intro: boolean;
 }
 
 const ACCENT = '#8b7bff';
+const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3 } as const;
+
+const smoothstep = (e0: number, e1: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
 
 export function Stage(props: Props) {
-  const { scene, zones, devices, frames, selected, onSelect } = props;
+  const { scene, zones, devices, frames, selected, onSelect, intro } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
   const hover = useRef<string | null>(null);
   const layouts = useMemo(() => layoutScene(zones, scene.zones), [zones, scene.zones]);
   const live = useRef({ layouts, zones, scene, devices, selected });
   live.current = { layouts, zones, scene, devices, selected };
   const geo = useRef({ s: 1, ox: 0, oy: 0 });
+  const introStart = useRef<number | null>(null);
+  if (intro && introStart.current === null) introStart.current = performance.now();
 
   useEffect(
     () =>
-      subscribeFrame(() => {
+      subscribeFrame((now) => {
         const c = canvas.current;
         if (!c) return;
         const ctx = fitCanvas(c);
         if (!ctx) return;
-        draw(ctx, c.clientWidth, c.clientHeight, live.current, frames.current, hover.current, geo.current);
+        const e = introStart.current === null ? 99 : (now - introStart.current) / 1000;
+        draw(ctx, c.clientWidth, c.clientHeight, live.current, frames.current, hover.current, geo.current, now, e);
       }),
     [frames],
   );
@@ -74,6 +85,9 @@ function draw(
   frame: Map<string, Uint8Array>,
   hoverId: string | null,
   geo: { s: number; ox: number; oy: number },
+  now: number,
+  /** Seconds since the startup sequence began (large once it's over). */
+  introT: number,
 ) {
   const s = Math.min(w / SCENE_W, h / SCENE_H) * 0.97;
   const ox = (w - SCENE_W * s) / 2;
@@ -81,20 +95,50 @@ function draw(
   Object.assign(geo, { s, ox, oy });
   const X = (x: number) => ox + x * s;
   const Y = (y: number) => oy + y * s;
+  const intro = introT < 3;
+
+  // During the intro each zone powers up in turn (fans → RAM → GPU → board).
+  if (intro) {
+    const order = [...st.zones].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]).map((z) => z.id);
+    const scaled = new Map<string, Uint8Array>();
+    for (const l of st.layouts) {
+      const src = frame.get(l.zoneId);
+      if (!src) continue;
+      const start = 0.75 + order.indexOf(l.zoneId) * 0.22;
+      const dst = new Uint8Array(src.length);
+      for (let i = 0; i < l.points.length; i++) {
+        const a = smoothstep(0, 0.45, introT - start - l.points[i].lu * 0.3);
+        for (let c = 0; c < 3; c++) dst[i * 3 + c] = src[i * 3 + c] * a;
+      }
+      scaled.set(l.zoneId, dst);
+    }
+    frame = scaled;
+  }
 
   ctx.clearRect(0, 0, w, h);
 
-  // Case and components (unlit furniture).
+  // Case and components (unlit furniture). The outline draws itself in during the intro.
   const k = SCENE.case;
+  const fade = intro ? smoothstep(0.15, 0.8, introT) : 1;
+  ctx.save();
+  ctx.globalAlpha = fade;
   roundRect(ctx, X(k.x), Y(k.y), k.w * s, k.h * s, 3 * s);
   const caseFill = ctx.createLinearGradient(0, Y(k.y), 0, Y(k.y + k.h));
   caseFill.addColorStop(0, 'rgba(255,255,255,0.035)');
   caseFill.addColorStop(1, 'rgba(255,255,255,0.012)');
   ctx.fillStyle = caseFill;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.restore();
+  const perimeter = 2 * (k.w + k.h) * s;
+  ctx.save();
+  if (intro) ctx.setLineDash([perimeter * smoothstep(0, 0.9, introT), perimeter]);
+  roundRect(ctx, X(k.x), Y(k.y), k.w * s, k.h * s, 3 * s);
+  ctx.strokeStyle = intro ? `rgba(160,150,255,${0.09 + 0.5 * (1 - smoothstep(0.6, 1.6, introT))})` : 'rgba(255,255,255,0.09)';
   ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.globalAlpha = fade;
 
   const b = SCENE.board;
   roundRect(ctx, X(b.x), Y(b.y), b.w * s, b.h * s, 1.2 * s);
@@ -132,6 +176,22 @@ function draw(
     }
     label(ctx, 'RAM · setup needed', X(69), Y(44), s, 'rgba(255,255,255,0.32)');
   }
+  ctx.restore();
+
+  // Intro scan line sweeping across the case.
+  if (intro && introT < 1.6) {
+    const sx = X(k.x + k.w * smoothstep(0.1, 1.5, introT));
+    const band = 14 * s;
+    const grad = ctx.createLinearGradient(sx - band, 0, sx + band, 0);
+    grad.addColorStop(0, 'rgba(139,123,255,0)');
+    grad.addColorStop(0.5, `rgba(170,160,255,${0.35 * (1 - smoothstep(1.2, 1.6, introT))})`);
+    grad.addColorStop(1, 'rgba(0,216,255,0)');
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx - band, Y(k.y), band * 2, k.h * s);
+    ctx.restore();
+  }
 
   // Ambient glow (additive).
   ctx.save();
@@ -157,19 +217,26 @@ function draw(
   // Hardware bodies + LEDs.
   for (const l of st.layouts) {
     const rgb = frame.get(l.zoneId) ?? new Uint8Array(l.points.length * 3);
-    for (const sh of l.shapes) {
+    l.shapes.forEach((sh, si) => {
       if (sh.type === 'fan') {
+        // Light from this fan's ring spills onto its housing and blades.
+        const [ar, ag, ab] = groupAverage(rgb, l, si);
         ctx.beginPath();
         ctx.arc(X(sh.cx), Y(sh.cy), sh.r * 1.08 * s, 0, Math.PI * 2);
-        ctx.fillStyle = '#0b0d12';
+        const housing = ctx.createRadialGradient(X(sh.cx), Y(sh.cy), sh.r * 0.2 * s, X(sh.cx), Y(sh.cy), sh.r * 1.08 * s);
+        housing.addColorStop(0, '#0b0d12');
+        housing.addColorStop(0.75, `rgba(${ar * 0.12 + 11},${ag * 0.12 + 13},${ab * 0.12 + 18},1)`);
+        housing.addColorStop(1, `rgba(${ar * 0.25 + 11},${ag * 0.25 + 13},${ab * 0.25 + 18},1)`);
+        ctx.fillStyle = housing;
         ctx.fill();
         ctx.strokeStyle = 'rgba(255,255,255,0.06)';
         ctx.stroke();
-        // Blades.
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-        ctx.lineWidth = Math.max(1, 0.5 * s);
+        // Spinning blades.
+        const spin = (now / 1000) * 2.4 + si * 0.7;
+        ctx.strokeStyle = `rgba(${Math.min(255, ar + 60)},${Math.min(255, ag + 60)},${Math.min(255, ab + 60)},0.13)`;
+        ctx.lineWidth = Math.max(1, 0.55 * s);
         for (let bl = 0; bl < 7; bl++) {
-          const a = (bl / 7) * Math.PI * 2;
+          const a = (bl / 7) * Math.PI * 2 + spin;
           ctx.beginPath();
           ctx.arc(X(sh.cx), Y(sh.cy), sh.r * 0.55 * s, a, a + 0.9);
           ctx.stroke();
@@ -207,7 +274,7 @@ function draw(
         ctx.stroke();
         ctx.lineWidth = 1;
       }
-    }
+    });
     const z = st.zones.find((zz) => zz.id === l.zoneId);
     if (z?.kind !== 'ram') {
       const dot = Math.max(1.2, (z?.kind === 'fans' ? 0.75 : 0.6) * s);
@@ -229,17 +296,39 @@ function draw(
     const bb = l.bounds;
     const pad = 1.4;
     roundRect(ctx, X(bb.x - pad), Y(bb.y - pad), (bb.w + pad * 2) * s, (bb.h + pad * 2) * s, 1.6 * s);
-    ctx.strokeStyle = isSel ? ACCENT : 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = isSel ? 1.5 : 1;
-    ctx.setLineDash(isSel ? [] : [3, 3]);
+    ctx.save();
+    if (isSel) {
+      // Selected: a softly breathing glow.
+      ctx.shadowColor = ACCENT;
+      ctx.shadowBlur = 8 + 6 * Math.sin(now / 420);
+      ctx.strokeStyle = ACCENT;
+      ctx.lineWidth = 1.5;
+    } else {
+      // Hover: marching dashes.
+      ctx.setLineDash([3, 3]);
+      ctx.lineDashOffset = -now / 60;
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    }
     ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.lineWidth = 1;
+    ctx.restore();
     const z = st.zones.find((zz) => zz.id === l.zoneId);
     const name = st.scene.zones[l.zoneId]?.label || z?.name || '';
     const ly = bb.y - pad - 1.6 < 2 ? bb.y + bb.h + pad + 2.4 : bb.y - pad - 1.6;
     label(ctx, name, X(bb.x + bb.w / 2), Y(ly), s, isSel ? '#d9d3ff' : 'rgba(255,255,255,0.6)', 600);
   }
+}
+
+/** Average color of the LEDs belonging to fan `group` within a zone. */
+function groupAverage(rgb: Uint8Array, l: ZoneLayout, group: number): [number, number, number] {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < l.points.length; i++) {
+    if (l.points[i].group !== group) continue;
+    r += rgb[i * 3] ?? 0;
+    g += rgb[i * 3 + 1] ?? 0;
+    b += rgb[i * 3 + 2] ?? 0;
+    n++;
+  }
+  return n ? [r / n, g / n, b / n] : [0, 0, 0];
 }
 
 /** Brighten dim LED colors a little so the preview reads like the real thing. */

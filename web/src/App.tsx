@@ -1,19 +1,38 @@
-import { useState } from 'react';
-import { Panel, Toggle } from './components/controls.tsx';
+import { useEffect, useState } from 'react';
+import { useAmbientGlow, useAmbientSetting } from './ambient.ts';
+import { InfoTip, Panel, Toggle } from './components/controls.tsx';
 import { HELP } from './help.ts';
 import { GlobalInspector, ZoneInspector } from './components/Inspector.tsx';
 import { Stage } from './components/Stage.tsx';
 import { DeviceList, ZoneList } from './components/ZoneList.tsx';
 import { useLumen } from './useLumen.ts';
 
+/** How long the startup sequence plays when the dashboard opens. */
+export const INTRO_MS = 2600;
+
 export function App() {
   const { state, frames, updateScene, identify } = useLumen();
   const [selected, setSelected] = useState<string | null>(null);
   const { scene, zones, devices, connected, demo } = state;
   const zone = zones.find((z) => z.id === selected) ?? null;
+  const [ambient, setAmbient] = useAmbientSetting();
+  useAmbientGlow(frames, zones, ambient);
+
+  // Play the intro once, the first time the dashboard has something to show.
+  const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending');
+  useEffect(() => {
+    if (!scene || intro !== 'pending') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIntro('done');
+      return;
+    }
+    setIntro('playing');
+    const t = window.setTimeout(() => setIntro('done'), INTRO_MS);
+    return () => window.clearTimeout(t);
+  }, [scene, intro]);
 
   return (
-    <div className="app">
+    <div className={`app ${intro === 'playing' ? 'intro' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true" />
@@ -22,6 +41,13 @@ export function App() {
         </div>
         {scene && (
           <div className="master">
+            <div className="power">
+              <span className="label-wrap">
+                <span>Glow</span>
+                <InfoTip text={HELP.ambient} label="Glow" />
+              </span>
+              <Toggle checked={ambient} label="Ambient glow" onChange={setAmbient} />
+            </div>
             <label className="master-bright">
               <span>Brightness</span>
               <input
@@ -89,6 +115,7 @@ export function App() {
               frames={frames}
               selected={selected}
               onSelect={setSelected}
+              intro={intro === 'playing'}
             />
             {!scene.power && <div className="stage-off">Lighting is off</div>}
           </section>

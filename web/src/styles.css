@@ -32,14 +32,37 @@ body,
   margin: 0;
 }
 
+:root {
+  /* Live colors from the lights (set by ambient.ts as "r g b"). */
+  --amb-0: 0 216 255;
+  --amb-1: 139 123 255;
+  --amb-2: 255 79 163;
+  --amb-strength: 0.5;
+}
+
+:root:not(.ambient-on) {
+  --amb-strength: 0.28;
+}
+
 body {
-  background:
-    radial-gradient(1200px 600px at 60% -10%, rgba(124, 92, 255, 0.12), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(0, 216, 255, 0.06), transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font: 14px/1.45 var(--font);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient glow layer: sits behind the whole app and takes on the lights' colors. */
+.app::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 55% at 14% 42%, rgb(var(--amb-0) / calc(0.16 * var(--amb-strength) * 2)), transparent 70%),
+    radial-gradient(42% 50% at 58% 20%, rgb(var(--amb-1) / calc(0.13 * var(--amb-strength) * 2)), transparent 70%),
+    radial-gradient(46% 55% at 88% 78%, rgb(var(--amb-2) / calc(0.12 * var(--amb-strength) * 2)), transparent 70%);
+  filter: blur(20px);
 }
 
 button,
@@ -171,6 +194,10 @@ code {
   min-height: 0;
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr) 404px;
+}
+
+.layout {
+  transition: grid-template-columns 0.38s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* Folding Zones hands its column back to the case display. */
@@ -1466,6 +1493,276 @@ code {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---- ambient edges ------------------------------------------------------------ */
+
+.ambient-on .topbar {
+  border-image: linear-gradient(90deg, rgb(var(--amb-0) / 0.5), rgb(var(--amb-1) / 0.35), rgb(var(--amb-2) / 0.5)) 1;
+}
+
+.ambient-on .panel-block {
+  border-color: rgb(var(--amb-1) / 0.18);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.02), 0 18px 50px -30px rgb(var(--amb-1) / 0.55);
+}
+
+.ambient-on .stage-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 8% 10%;
+  border-radius: 40%;
+  background: radial-gradient(closest-side, rgb(var(--amb-1) / 0.16), transparent);
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+.ambient-on .logo {
+  background: conic-gradient(from 0deg, rgb(var(--amb-0)), rgb(var(--amb-1)), rgb(var(--amb-2)), rgb(var(--amb-0)));
+  box-shadow: 0 0 18px rgb(var(--amb-1) / 0.7);
+}
+
+/* ---- motion: panels ----------------------------------------------------------- */
+
+.panel-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.38s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.25s ease;
+}
+
+.panel-collapse[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.panel-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-block .panel-head {
+  transition: border-color 0.3s;
+}
+
+.panel-block.closed .panel-head {
+  border-bottom-color: transparent;
+}
+
+.panel-block.open .panel-head,
+.panel-block.closed .panel-head {
+  border-bottom: 1px solid transparent;
+}
+
+.panel-block.open .panel-head {
+  border-bottom-color: var(--border);
+}
+
+.panel-toggle:active {
+  transform: scale(0.98);
+}
+
+/* ---- motion: everything you touch ----------------------------------------------- */
+
+button,
+.zone,
+.layer,
+.preset-card,
+.effect-card {
+  transition-property: background, border-color, color, transform, box-shadow, opacity;
+  transition-duration: 0.18s;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.effect-card:active,
+.preset-card:active,
+.ghost-btn:active,
+.primary-btn:active,
+.icon-btn:active,
+.zone-main:active {
+  transform: scale(0.97);
+}
+
+.zone:hover {
+  transform: translateX(2px);
+}
+
+.toggle .knob {
+  transition: transform 0.28s cubic-bezier(0.3, 1.6, 0.5, 1), background 0.2s;
+}
+
+.toggle.on {
+  box-shadow: 0 0 14px -2px rgb(139 123 255 / 0.7);
+}
+
+.slider::-webkit-slider-thumb {
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow: 0 0 0 7px rgb(139 123 255 / 0.25), 0 0 18px rgb(139 123 255 / 0.8);
+}
+
+.slider {
+  transition: box-shadow 0.2s;
+}
+
+.slider:active {
+  box-shadow: 0 0 12px -2px rgb(139 123 255 / 0.6);
+}
+
+.preset-card.active,
+.effect-card.active {
+  animation: pick 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pick {
+  0% {
+    transform: scale(0.96);
+    box-shadow: 0 0 0 0 rgb(139 123 255 / 0.8);
+  }
+  60% {
+    box-shadow: 0 0 0 6px rgb(139 123 255 / 0);
+  }
+}
+
+/* Inspector content slides in when you switch between All zones and a zone. */
+.inspector {
+  animation: rise 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.layer,
+.preset-card,
+.zone,
+.device {
+  animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.stop {
+  transition: box-shadow 0.15s, outline-color 0.15s;
+}
+
+.stop:hover {
+  box-shadow: 0 0 0 4px rgb(255 255 255 / 0.12), 0 2px 8px rgb(0 0 0 / 0.6);
+}
+
+.badge {
+  animation: rise 0.3s ease both;
+}
+
+.notice {
+  animation: rise 0.3s ease both;
+}
+
+/* ---- startup sequence ------------------------------------------------------------- */
+
+.intro .topbar {
+  animation: drop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro .logo {
+  animation:
+    logo-boot 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+    spin 8s linear infinite;
+}
+
+.intro .wordmark {
+  animation: reveal-text 0.9s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro .panel-block {
+  animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro .sidebar .panel-block {
+  animation-delay: 0.5s;
+}
+
+.intro .panel .panel-block:nth-child(1) {
+  animation-delay: 0.7s;
+}
+
+.intro .panel .panel-block:nth-child(2) {
+  animation-delay: 0.85s;
+}
+
+/* Hardware rows check in one by one as their zones light up. */
+.intro .device {
+  animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.intro .device:nth-of-type(1) {
+  animation-delay: 0.9s;
+}
+.intro .device:nth-of-type(2) {
+  animation-delay: 1.15s;
+}
+.intro .device:nth-of-type(3) {
+  animation-delay: 1.4s;
+}
+.intro .device:nth-of-type(4) {
+  animation-delay: 1.65s;
+}
+
+.intro .device.connected .dot {
+  animation: dot-on 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: inherit;
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes logo-boot {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-180deg);
+    filter: brightness(3);
+  }
+  60% {
+    opacity: 1;
+    filter: brightness(1.8);
+  }
+}
+
+@keyframes reveal-text {
+  from {
+    opacity: 0;
+    letter-spacing: 0.4em;
+    filter: blur(6px);
+  }
+}
+
+@keyframes dot-on {
+  0% {
+    transform: scale(0);
+    box-shadow: 0 0 0 0 var(--ok);
+  }
+  60% {
+    transform: scale(1.6);
+    box-shadow: 0 0 16px 4px var(--ok);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 /* ---- small screens ---------------------------------------------------------- */
