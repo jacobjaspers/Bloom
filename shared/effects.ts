@@ -291,7 +291,12 @@ interface Sample {
 
 type Field = (t: number, p: LedPoint, zone: number, out: Sample) => void;
 
-function makeField(L: Layer, nStops: number, stopPos: number[]): Field {
+/** Where Ripple radiates from (normalised scene coords); defaults to the stock CPU position. */
+export interface RenderOptions {
+  origin?: { nx: number; ny: number };
+}
+
+function makeField(L: Layer, nStops: number, stopPos: number[], opts: RenderOptions): Field {
   const r = rate(L.speed);
   const sz = clamp01(L.size / 100);
   const rad = (L.angle * Math.PI) / 180;
@@ -354,7 +359,7 @@ function makeField(L: Layer, nStops: number, stopPos: number[]): Field {
 
     case 'ripple': {
       const freq = 1.5 + (1 - sz) * 6;
-      const cx = 0.555, cy = 0.39; // CPU
+      const cx = opts.origin?.nx ?? 0.555, cy = opts.origin?.ny ?? 0.39; // the CPU
       return (t, p, _z, o) => {
         const ddx = (p.nx - cx) * 1.333, ddy = p.ny - cy;
         const x = Math.sqrt(ddx * ddx + ddy * ddy) * freq - t * r * 1.2;
@@ -426,12 +431,15 @@ export interface LayerSample {
   alpha: number;
 }
 
-export function createLayerRenderer(L: Layer): (t: number, p: LedPoint, zone: number, out: LayerSample) => void {
+export function createLayerRenderer(
+  L: Layer,
+  opts: RenderOptions = {},
+): (t: number, p: LedPoint, zone: number, out: LayerSample) => void {
   const s = sortedStops(L.palette);
   const stopPos = s.map((x) => x.pos);
   const loopLut = buildLut(s, true);
   const clampLut = buildLut(s, false);
-  const field = makeField(L, s.length, stopPos);
+  const field = makeField(L, s.length, stopPos, opts);
   const I = clamp01(L.intensity / 100);
   const lo = clamp01(Math.min(L.minBrightness, L.maxBrightness) / 100);
   const hi = clamp01(Math.max(L.minBrightness, L.maxBrightness) / 100);
@@ -470,9 +478,9 @@ export function createLayerRenderer(L: Layer): (t: number, p: LedPoint, zone: nu
 }
 
 /** Composite a whole stack: bottom layer is opaque, upper layers blend onto it. */
-export function createRenderer(stack: EffectStack): Renderer {
+export function createRenderer(stack: EffectStack, opts: RenderOptions = {}): Renderer {
   const layers = stack.layers.filter((l) => l.enabled);
-  const renders = layers.map(createLayerRenderer);
+  const renders = layers.map((l) => createLayerRenderer(l, opts));
   const s: LayerSample = { r: 0, g: 0, b: 0, alpha: 1 };
   return (t, p, zone) => {
     let r = 0, g = 0, b = 0;

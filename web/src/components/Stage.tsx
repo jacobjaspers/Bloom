@@ -1,10 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { clampPlacement, layoutScene, SCENE, SCENE_H, SCENE_W, zoneCenter, type ZoneLayout } from '../../../shared/layout.ts';
-import type { DeviceStatus, Placement, Scene, ZoneRuntime } from '../../../shared/types.ts';
+// The case display: live preview of every LED, plus the Build editor (move, resize and
+// rotate parts, with undo/redo). Drawing lives in stageDraw.ts.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  clampPlacement,
+  layoutParts,
+  layoutScene,
+  MAX_SCALE,
+  MIN_SCALE,
+  SCENE,
+  zoneCenter,
+  type Rect,
+} from '../../../shared/layout.ts';
+import type { DeviceStatus, PartId, Placement, Scene, ZoneRuntime } from '../../../shared/types.ts';
 import { HELP } from '../help.ts';
-import { InfoTip } from './controls.tsx';
 import { fitCanvas, subscribeFrame } from '../frameLoop.ts';
 import type { FrameStore } from '../useLumen.ts';
+import { InfoTip } from './controls.tsx';
+import { draw, HANDLE, unionRect } from './stageDraw.ts';
+
+/** Something the Build editor can move: a lit zone, or an unlit case part. */
+export type EditTarget = { kind: 'zone'; id: string } | { kind: 'part'; id: PartId };
+
+/** Every placement at once (for undo/redo and reset). */
+export interface LayoutSnapshot {
+  zones: Record<string, Placement | undefined>;
+  parts: Partial<Record<PartId, Placement>>;
+}
 
 interface Props {
   scene: Scene;
@@ -15,31 +37,162 @@ interface Props {
   onSelect: (zoneId: string | null) => void;
   /** True while the dashboard's startup sequence is playing. */
   intro: boolean;
-  /** Build editor: move/rotate a part, or clear every placement. */
-  onPlace: (zoneId: string, place: Placement) => void;
-  onResetLayout: () => void;
+  /** Build editor: apply a whole layout (moves, undo, redo and reset all go through this). */
+  onSetLayout: (layout: LayoutSnapshot) => void;
 }
 
-const ACCENT = '#8b7bff';
-const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3 } as const;
-
-const smoothstep = (e0: number, e1: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
-};
+const PART_BASE: Record<PartId, Rect> = { cpu: SCENE.cpu, board: SCENE.board };
+const PART_NAME: Record<PartId, string> = { cpu: 'CPU', board: 'Motherboard' };
+const HISTORY = 60;
 
 export function Stage(props: Props) {
-  const { scene, zones, devices, frames, selected, onSelect, intro, onPlace, onResetLayout } = props;
+  const { scene, zones, devices, frames, selected, onSelect, intro, onSetLayout } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
-  const hover = useRef<string | null>(null);
+  const hover = useRef<EditTarget | null>(null);
   const [editing, setEditing] = useState(false);
+  const [editSel, setEditSel] = useState<EditTarget | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const layouts = useMemo(() => layoutScene(zones, scene.zones), [zones, scene.zones]);
-  const live = useRef({ layouts, zones, scene, devices, selected, editing });
-  live.current = { layouts, zones, scene, devices, selected, editing };
+  const parts = useMemo(() => layoutParts(scene.parts), [scene.parts]);
+  const live = useRef({ layouts, parts, zones, scene, devices, selected, editing, editSel });
+  live.current = { layouts, parts, zones, scene, devices, selected, editing, editSel };
   const geo = useRef({ s: 1, ox: 0, oy: 0 });
   const introStart = useRef<number | null>(null);
   if (intro && introStart.current === null) introStart.current = performance.now();
-  const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; rot: Placement['rot']; moved: boolean } | null>(null);
+
+  // ---- layout state + history -----------------------------------------------------
+
+  const snapshot = useCallback((): LayoutSnapshot => {
+    const z: LayoutSnapshot['zones'] = {};
+    for (const [id, s] of Object.entries(scene.zones)) z[id] = s.place ? { ...s.place } : undefined;
+    return { zones: z, parts: structuredClone(scene.parts ?? {}) };
+  }, [scene.zones, scene.parts]);
+
+  const history = useRef<{ undo: LayoutSnapshot[]; redo: LayoutSnapshot[] }>({ undo: [], redo: [] });
+  const [, bump] = useState(0);
+  const remember = () => {
+    const h = history.current;
+    h.undo.push(snapshot());
+    if (h.undo.length > HISTORY) h.undo.shift();
+    h.redo = [];
+    bump((n) => n + 1);
+  };
+  const undo = () => {
+    const h = history.current;
+    const prev = h.undo.pop();
+    if (!prev) return;
+    h.redo.push(snapshot());
+    onSetLayout(prev);
+    bump((n) => n + 1);
+  };
+  const redo = () => {
+    const h = history.current;
+    const next = h.redo.pop();
+    if (!next) return;
+    h.undo.push(snapshot());
+    onSetLayout(next);
+    bump((n) => n + 1);
+  };
+
+  const rectOf = (t: EditTarget): Rect | null => {
+    if (t.kind === 'part') return parts[t.id];
+    const l = layouts.find((x) => x.zoneId === t.id);
+    return l ? (l.body ? unionRect(l.bounds, l.body) : l.bounds) : null;
+  };
+
+  /** The target's current placement, or its automatic position if it has never moved. */
+  const placementOf = (t: EditTarget): Placement => {
+    if (t.kind === 'part') {
+      const b = PART_BASE[t.id];
+      return scene.parts?.[t.id] ?? { x: b.x + b.w / 2, y: b.y + b.h / 2, rot: 0 };
+    }
+    const cur = scene.zones[t.id]?.place;
+    if (cur) return cur;
+    const l = layouts.find((x) => x.zoneId === t.id);
+    const c = l ? zoneCenter(l) : { x: 50, y: 37 };
+    return { x: c.x, y: c.y, rot: 0 };
+  };
+
+  const setPlacement = (t: EditTarget, p: Placement) => {
+    const next = snapshot();
+    if (t.kind === 'part') next.parts[t.id] = clampPlacement(p);
+    else next.zones[t.id] = clampPlacement(p);
+    onSetLayout(next);
+  };
+
+  const rotate = () => {
+    if (!editSel) return;
+    remember();
+    const p = placementOf(editSel);
+    setPlacement(editSel, { ...p, rot: ((p.rot + 1) % 4) as Placement['rot'] });
+  };
+  const resize = (factor: number) => {
+    if (!editSel) return;
+    remember();
+    const p = placementOf(editSel);
+    setPlacement(editSel, { ...p, scale: (p.scale ?? 1) * factor });
+  };
+  const nudge = (dx: number, dy: number) => {
+    if (!editSel) return;
+    remember();
+    const p = placementOf(editSel);
+    setPlacement(editSel, { ...p, x: p.x + dx, y: p.y + dy });
+  };
+  const resetAll = () => {
+    remember();
+    onSetLayout({ zones: Object.fromEntries(Object.keys(scene.zones).map((id) => [id, undefined])), parts: {} });
+    setConfirmReset(false);
+  };
+
+  // The "Confirm reset" button reverts to "Reset" if you don't click it.
+  useEffect(() => {
+    if (!confirmReset) return;
+    const t = window.setTimeout(() => setConfirmReset(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [confirmReset]);
+
+  // Keyboard: Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z), R rotate, +/- size, arrows nudge, Esc done.
+  const keys = useRef<(e: KeyboardEvent) => void>(() => {});
+  keys.current = (e: KeyboardEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const k = e.key.toLowerCase();
+    if (mod && k === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+    if (mod) return;
+    if (k === 'r') return rotate();
+    if (k === '+' || k === '=') return resize(1.1);
+    if (k === '-' || k === '_') return resize(1 / 1.1);
+    if (k === 'escape') return setEditing(false);
+    const step = e.shiftKey ? 2 : 0.5;
+    const arrows: Record<string, [number, number]> = {
+      arrowleft: [-step, 0],
+      arrowright: [step, 0],
+      arrowup: [0, -step],
+      arrowdown: [0, step],
+    };
+    if (arrows[k] && editSel) {
+      e.preventDefault();
+      nudge(...arrows[k]);
+    }
+  };
+  useEffect(() => {
+    if (!editing) return;
+    const h = (e: KeyboardEvent) => keys.current(e);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [editing]);
+
+  // ---- drawing loop -------------------------------------------------------------------
 
   useEffect(
     () =>
@@ -54,29 +207,50 @@ export function Stage(props: Props) {
     [frames],
   );
 
+  // ---- pointer --------------------------------------------------------------------------
+
   const toScene = (e: { clientX: number; clientY: number }) => {
     const r = canvas.current!.getBoundingClientRect();
     const { s, ox, oy } = geo.current;
     return { x: (e.clientX - r.left - ox) / s, y: (e.clientY - r.top - oy) / s };
   };
 
-  const hit = (e: { clientX: number; clientY: number }): string | null => {
-    const { x, y } = toScene(e);
-    for (const l of [...live.current.layouts].reverse()) {
-      for (const b of l.body ? [l.bounds, l.body] : [l.bounds]) {
-        if (x >= b.x - 1 && x <= b.x + b.w + 1 && y >= b.y - 1 && y <= b.y + b.h + 1) return l.zoneId;
-      }
+  const inRect = (p: { x: number; y: number }, b: Rect, pad = 1) =>
+    p.x >= b.x - pad && p.x <= b.x + b.w + pad && p.y >= b.y - pad && p.y <= b.y + b.h + pad;
+
+  /** Topmost thing under the pointer: lit zones first, then the CPU, then the board (edit mode only). */
+  const hit = (e: { clientX: number; clientY: number }, includeParts: boolean): EditTarget | null => {
+    const p = toScene(e);
+    for (const l of [...layouts].reverse()) {
+      for (const b of l.body ? [l.bounds, l.body] : [l.bounds]) if (inRect(p, b)) return { kind: 'zone', id: l.zoneId };
+    }
+    if (includeParts) {
+      if (inRect(p, parts.cpu, 0)) return { kind: 'part', id: 'cpu' };
+      if (inRect(p, parts.board, 0)) return { kind: 'part', id: 'board' };
     }
     return null;
   };
 
-  const selLayout = editing && selected ? layouts.find((l) => l.zoneId === selected) : undefined;
-  const rotateSelected = () => {
-    if (!selLayout) return;
-    const c = zoneCenter(selLayout);
-    const cur = scene.zones[selLayout.zoneId]?.place;
-    onPlace(selLayout.zoneId, clampPlacement({ x: cur?.x ?? c.x, y: cur?.y ?? c.y, rot: (((cur?.rot ?? 0) + 1) % 4) as Placement['rot'] }));
+  const onHandle = (e: { clientX: number; clientY: number }) => {
+    if (!editSel) return false;
+    const r = rectOf(editSel);
+    if (!r) return false;
+    const p = toScene(e);
+    return Math.abs(p.x - (r.x + r.w)) <= HANDLE * 1.4 && Math.abs(p.y - (r.y + r.h)) <= HANDLE * 1.4;
   };
+
+  const gesture = useRef<
+    | { mode: 'move'; t: EditTarget; sx: number; sy: number; start: Placement; moved: boolean }
+    | { mode: 'resize'; t: EditTarget; d0: number; start: Placement; moved: boolean }
+    | null
+  >(null);
+
+  const selLabel = editSel
+    ? editSel.kind === 'part'
+      ? PART_NAME[editSel.id]
+      : scene.zones[editSel.id]?.label || zones.find((z) => z.id === editSel.id)?.name || 'Part'
+    : null;
+  const h = history.current;
 
   return (
     <>
@@ -86,64 +260,121 @@ export function Stage(props: Props) {
         role="img"
         aria-label={
           editing
-            ? 'Layout editor. Drag a part to move it.'
+            ? 'Layout editor. Drag a part to move it, drag its corner handle to resize.'
             : 'Live preview of your PC lighting. Click a fan group or RAM stick to select it.'
         }
         onPointerDown={(e) => {
           if (!editing) return;
-          const id = hit(e);
-          if (!id) return;
-          const l = layouts.find((x) => x.zoneId === id)!;
-          const c = zoneCenter(l);
-          const cur = scene.zones[id]?.place;
           const p = toScene(e);
+          if (editSel && onHandle(e)) {
+            const start = placementOf(editSel);
+            const d0 = Math.max(0.5, Math.hypot(p.x - start.x, p.y - start.y));
+            gesture.current = { mode: 'resize', t: editSel, d0, start, moved: false };
+          } else {
+            const t = hit(e, true);
+            setEditSel(t);
+            if (!t) return;
+            if (t.kind === 'zone') onSelect(t.id);
+            gesture.current = { mode: 'move', t, sx: p.x, sy: p.y, start: placementOf(t), moved: false };
+          }
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
-          drag.current = { id, sx: p.x, sy: p.y, ox: cur?.x ?? c.x, oy: cur?.y ?? c.y, rot: cur?.rot ?? 0, moved: false };
-          onSelect(id);
         }}
         onPointerMove={(e) => {
-          const d = drag.current;
-          if (d) {
+          const g = gesture.current;
+          if (g) {
             const p = toScene(e);
-            const dx = p.x - d.sx, dy = p.y - d.sy;
-            if (!d.moved && Math.hypot(dx, dy) < 0.6) return;
-            d.moved = true;
-            const snap = (v: number) => Math.round(v * 2) / 2;
-            onPlace(d.id, clampPlacement({ x: snap(d.ox + dx), y: snap(d.oy + dy), rot: d.rot }));
+            if (g.mode === 'move') {
+              const dx = p.x - g.sx, dy = p.y - g.sy;
+              if (!g.moved && Math.hypot(dx, dy) < 0.6) return;
+              if (!g.moved) remember();
+              g.moved = true;
+              const snap = (v: number) => Math.round(v * 2) / 2;
+              setPlacement(g.t, { ...g.start, x: snap(g.start.x + dx), y: snap(g.start.y + dy) });
+            } else {
+              const d = Math.hypot(p.x - g.start.x, p.y - g.start.y);
+              const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, ((g.start.scale ?? 1) * d) / g.d0));
+              if (!g.moved && Math.abs(scale - (g.start.scale ?? 1)) < 0.02) return;
+              if (!g.moved) remember();
+              g.moved = true;
+              setPlacement(g.t, { ...g.start, scale });
+            }
             return;
           }
-          hover.current = hit(e);
+          if (editing && onHandle(e)) {
+            canvas.current!.style.cursor = 'nwse-resize';
+            return;
+          }
+          hover.current = hit(e, editing);
           canvas.current!.style.cursor = hover.current ? (editing ? 'grab' : 'pointer') : 'default';
         }}
-        onPointerUp={() => (drag.current = null)}
+        onPointerUp={() => (gesture.current = null)}
+        onPointerCancel={() => (gesture.current = null)}
         onPointerLeave={() => (hover.current = null)}
-        onClick={(e) => !editing && onSelect(hit(e))}
-        onKeyDown={(e) => editing && (e.key === 'r' || e.key === 'R') && rotateSelected()}
-        tabIndex={editing ? 0 : -1}
+        onClick={(e) => {
+          if (editing) return;
+          const t = hit(e, false);
+          onSelect(t?.kind === 'zone' ? t.id : null);
+        }}
       />
 
       <div className={`stage-tools ${editing ? 'editing' : ''}`}>
         {editing ? (
           <>
-            <span className="stage-hint">Drag parts to match your PC</span>
-            <button type="button" className="ghost-btn" disabled={!selLayout} onClick={rotateSelected} title="Rotate the selected part (R)">
-              ⟳ Rotate
-            </button>
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => {
-                if (window.confirm('Put every part back in its automatic position?')) onResetLayout();
-              }}
-            >
-              Reset
-            </button>
+            <span className="stage-hint">{selLabel ? <strong>{selLabel}</strong> : 'Drag parts to match your PC'}</span>
+            <span className="tool-group" role="group" aria-label="History">
+              <button type="button" className="icon-btn" disabled={!h.undo.length} onClick={undo} title="Undo (Ctrl+Z)" aria-label="Undo">
+                ↶
+              </button>
+              <button type="button" className="icon-btn" disabled={!h.redo.length} onClick={redo} title="Redo (Ctrl+Y)" aria-label="Redo">
+                ↷
+              </button>
+            </span>
+            <span className="tool-group" role="group" aria-label="Selected part">
+              <button
+                type="button"
+                className="icon-btn"
+                disabled={!editSel}
+                onClick={() => resize(1 / 1.1)}
+                title="Smaller (−)"
+                aria-label="Make smaller"
+              >
+                −
+              </button>
+              <button type="button" className="icon-btn" disabled={!editSel} onClick={() => resize(1.1)} title="Bigger (+)" aria-label="Make bigger">
+                +
+              </button>
+              <button type="button" className="icon-btn" disabled={!editSel} onClick={rotate} title="Rotate (R)" aria-label="Rotate">
+                ⟳
+              </button>
+            </span>
+            {confirmReset ? (
+              <button type="button" className="ghost-btn danger" onClick={resetAll}>
+                Confirm reset
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setConfirmReset(true)}
+                title="Put every part back in its automatic position"
+              >
+                Reset
+              </button>
+            )}
             <button type="button" className="primary-btn" onClick={() => setEditing(false)}>
               Done
             </button>
           </>
         ) : (
-          <button type="button" className="ghost-btn glass" onClick={() => setEditing(true)} title="Move fans, RAM and the GPU to match your build">
+          <button
+            type="button"
+            className="ghost-btn glass"
+            onClick={() => {
+              setEditing(true);
+              setEditSel(null);
+            }}
+            title="Move and resize fans, RAM, the GPU and CPU to match your build"
+          >
             ✎ Edit layout
           </button>
         )}
@@ -151,293 +382,4 @@ export function Stage(props: Props) {
       </div>
     </>
   );
-}
-
-// ---- drawing ------------------------------------------------------------------
-
-function draw(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  st: { layouts: ZoneLayout[]; zones: ZoneRuntime[]; scene: Scene; devices: DeviceStatus[]; selected: string | null; editing: boolean },
-  frame: Map<string, Uint8Array>,
-  hoverId: string | null,
-  geo: { s: number; ox: number; oy: number },
-  now: number,
-  /** Seconds since the startup sequence began (large once it's over). */
-  introT: number,
-) {
-  const s = Math.min(w / SCENE_W, h / SCENE_H) * 0.97;
-  const ox = (w - SCENE_W * s) / 2;
-  const oy = (h - SCENE_H * s) / 2;
-  Object.assign(geo, { s, ox, oy });
-  const X = (x: number) => ox + x * s;
-  const Y = (y: number) => oy + y * s;
-  const intro = introT < 3;
-
-  // During the intro each zone powers up in turn (fans → RAM → GPU → board).
-  if (intro) {
-    const order = [...st.zones].sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]).map((z) => z.id);
-    const scaled = new Map<string, Uint8Array>();
-    for (const l of st.layouts) {
-      const src = frame.get(l.zoneId);
-      if (!src) continue;
-      const start = 0.75 + order.indexOf(l.zoneId) * 0.22;
-      const dst = new Uint8Array(src.length);
-      for (let i = 0; i < l.points.length; i++) {
-        const a = smoothstep(0, 0.45, introT - start - l.points[i].lu * 0.3);
-        for (let c = 0; c < 3; c++) dst[i * 3 + c] = src[i * 3 + c] * a;
-      }
-      scaled.set(l.zoneId, dst);
-    }
-    frame = scaled;
-  }
-
-  ctx.clearRect(0, 0, w, h);
-
-  // Case and components (unlit furniture). The outline draws itself in during the intro.
-  const k = SCENE.case;
-  const fade = intro ? smoothstep(0.15, 0.8, introT) : 1;
-  ctx.save();
-  ctx.globalAlpha = fade;
-  roundRect(ctx, X(k.x), Y(k.y), k.w * s, k.h * s, 3 * s);
-  const caseFill = ctx.createLinearGradient(0, Y(k.y), 0, Y(k.y + k.h));
-  caseFill.addColorStop(0, 'rgba(255,255,255,0.035)');
-  caseFill.addColorStop(1, 'rgba(255,255,255,0.012)');
-  ctx.fillStyle = caseFill;
-  ctx.fill();
-  ctx.restore();
-  const perimeter = 2 * (k.w + k.h) * s;
-  ctx.save();
-  if (intro) ctx.setLineDash([perimeter * smoothstep(0, 0.9, introT), perimeter]);
-  roundRect(ctx, X(k.x), Y(k.y), k.w * s, k.h * s, 3 * s);
-  ctx.strokeStyle = intro ? `rgba(160,150,255,${0.09 + 0.5 * (1 - smoothstep(0.6, 1.6, introT))})` : 'rgba(255,255,255,0.09)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.restore();
-  ctx.save();
-  ctx.globalAlpha = fade;
-
-  const b = SCENE.board;
-  roundRect(ctx, X(b.x), Y(b.y), b.w * s, b.h * s, 1.2 * s);
-  ctx.fillStyle = '#0e1016';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-  ctx.stroke();
-
-  const cpu = SCENE.cpu;
-  roundRect(ctx, X(cpu.x), Y(cpu.y), cpu.w * s, cpu.h * s, 1 * s);
-  ctx.fillStyle = '#151821';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.stroke();
-  label(ctx, 'CPU', X(cpu.x + cpu.w / 2), Y(cpu.y + cpu.h / 2), s, 'rgba(255,255,255,0.18)');
-
-  // The graphics card moves with its logo zone in the Build editor.
-  const gpu = st.layouts.find((l) => l.body)?.body ?? SCENE.gpu;
-  roundRect(ctx, X(gpu.x), Y(gpu.y), gpu.w * s, gpu.h * s, 1 * s);
-  ctx.fillStyle = '#12141b';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
-  ctx.stroke();
-  label(ctx, 'GPU', X(gpu.x + gpu.w / 2), Y(gpu.y + gpu.h / 2), s, 'rgba(255,255,255,0.18)');
-
-  // Ghost RAM when the RAM device isn't available yet.
-  const ram = st.devices.find((d) => d.id === 'ram');
-  if (ram && ram.state !== 'connected') {
-    for (let i = 0; i < 2; i++) {
-      const x0 = 66 + (i - 0.5) * 3.3 + 2;
-      ctx.setLineDash([2, 3]);
-      roundRect(ctx, X(x0), Y(17), 1.9 * s, 24 * s, 0.4 * s);
-      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    label(ctx, 'RAM · setup needed', X(69), Y(44), s, 'rgba(255,255,255,0.32)');
-  }
-  ctx.restore();
-
-  // Intro scan line sweeping across the case.
-  if (intro && introT < 1.6) {
-    const sx = X(k.x + k.w * smoothstep(0.1, 1.5, introT));
-    const band = 14 * s;
-    const grad = ctx.createLinearGradient(sx - band, 0, sx + band, 0);
-    grad.addColorStop(0, 'rgba(139,123,255,0)');
-    grad.addColorStop(0.5, `rgba(170,160,255,${0.35 * (1 - smoothstep(1.2, 1.6, introT))})`);
-    grad.addColorStop(1, 'rgba(0,216,255,0)');
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.fillStyle = grad;
-    ctx.fillRect(sx - band, Y(k.y), band * 2, k.h * s);
-    ctx.restore();
-  }
-
-  // Ambient glow (additive).
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  for (const l of st.layouts) {
-    const rgb = frame.get(l.zoneId);
-    if (!rgb) continue;
-    const z = st.zones.find((zz) => zz.id === l.zoneId);
-    const radius = (z?.kind === 'ram' ? 4.5 : 5.5) * s;
-    for (let i = 0; i < l.points.length; i++) {
-      const r = rgb[i * 3], g = rgb[i * 3 + 1], bb = rgb[i * 3 + 2];
-      if (r + g + bb < 6) continue;
-      const p = l.points[i];
-      const grad = ctx.createRadialGradient(X(p.x), Y(p.y), 0, X(p.x), Y(p.y), radius);
-      grad.addColorStop(0, `rgba(${r},${g},${bb},0.22)`);
-      grad.addColorStop(1, `rgba(${r},${g},${bb},0)`);
-      ctx.fillStyle = grad;
-      ctx.fillRect(X(p.x) - radius, Y(p.y) - radius, radius * 2, radius * 2);
-    }
-  }
-  ctx.restore();
-
-  // Hardware bodies + LEDs.
-  for (const l of st.layouts) {
-    const rgb = frame.get(l.zoneId) ?? new Uint8Array(l.points.length * 3);
-    l.shapes.forEach((sh, si) => {
-      if (sh.type === 'fan') {
-        // Light from this fan's ring spills onto its housing and blades.
-        const [ar, ag, ab] = groupAverage(rgb, l, si);
-        ctx.beginPath();
-        ctx.arc(X(sh.cx), Y(sh.cy), sh.r * 1.08 * s, 0, Math.PI * 2);
-        const housing = ctx.createRadialGradient(X(sh.cx), Y(sh.cy), sh.r * 0.2 * s, X(sh.cx), Y(sh.cy), sh.r * 1.08 * s);
-        housing.addColorStop(0, '#0b0d12');
-        housing.addColorStop(0.75, `rgba(${ar * 0.12 + 11},${ag * 0.12 + 13},${ab * 0.12 + 18},1)`);
-        housing.addColorStop(1, `rgba(${ar * 0.25 + 11},${ag * 0.25 + 13},${ab * 0.25 + 18},1)`);
-        ctx.fillStyle = housing;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-        ctx.stroke();
-        // Spinning blades.
-        const spin = (now / 1000) * 2.4 + si * 0.7;
-        ctx.strokeStyle = `rgba(${Math.min(255, ar + 60)},${Math.min(255, ag + 60)},${Math.min(255, ab + 60)},0.13)`;
-        ctx.lineWidth = Math.max(1, 0.55 * s);
-        for (let bl = 0; bl < 7; bl++) {
-          const a = (bl / 7) * Math.PI * 2 + spin;
-          ctx.beginPath();
-          ctx.arc(X(sh.cx), Y(sh.cy), sh.r * 0.55 * s, a, a + 0.9);
-          ctx.stroke();
-        }
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(X(sh.cx), Y(sh.cy), sh.r * 0.2 * s, 0, Math.PI * 2);
-        ctx.fillStyle = '#14171f';
-        ctx.fill();
-      } else if (sh.type === 'stick') {
-        roundRect(ctx, X(sh.x), Y(sh.y), sh.w * s, sh.h * s, 0.4 * s);
-        ctx.fillStyle = '#1b1e26';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.stroke();
-        // Light bar as a continuous gradient through the LED colors.
-        const n = l.points.length;
-        if (n) {
-          const top = Y(l.points[n - 1].y) - 1.2 * s;
-          const bot = Y(l.points[0].y) + 1.2 * s;
-          const grad = ctx.createLinearGradient(0, bot, 0, top);
-          for (let i = 0; i < n; i++) {
-            grad.addColorStop(n === 1 ? 0.5 : i / (n - 1), `rgb(${lift(rgb, i)})`);
-          }
-          roundRect(ctx, X(sh.x + sh.w * 0.22), top, sh.w * 0.56 * s, bot - top, 0.3 * s);
-          ctx.fillStyle = grad;
-          ctx.fill();
-        }
-      } else {
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.lineWidth = Math.max(1, 0.9 * s);
-        ctx.beginPath();
-        ctx.moveTo(X(sh.x1), Y(sh.y1));
-        ctx.lineTo(X(sh.x2), Y(sh.y2));
-        ctx.stroke();
-        ctx.lineWidth = 1;
-      }
-    });
-    const z = st.zones.find((zz) => zz.id === l.zoneId);
-    if (z?.kind !== 'ram') {
-      const dot = Math.max(1.2, (z?.kind === 'fans' ? 0.75 : 0.6) * s);
-      for (let i = 0; i < l.points.length; i++) {
-        const p = l.points[i];
-        ctx.beginPath();
-        ctx.arc(X(p.x), Y(p.y), dot, 0, Math.PI * 2);
-        ctx.fillStyle = `rgb(${lift(rgb, i)})`;
-        ctx.fill();
-      }
-    }
-  }
-
-  // Selection + hover outlines and labels. In the Build editor every part is outlined.
-  for (const l of st.layouts) {
-    const isSel = l.zoneId === st.selected;
-    const isHover = l.zoneId === hoverId;
-    if (!isSel && !isHover && !st.editing) continue;
-    const bb = l.body ? unionRect(l.bounds, l.body) : l.bounds;
-    const pad = 1.4;
-    roundRect(ctx, X(bb.x - pad), Y(bb.y - pad), (bb.w + pad * 2) * s, (bb.h + pad * 2) * s, 1.6 * s);
-    ctx.save();
-    if (st.editing && !isSel && !isHover) {
-      ctx.setLineDash([2, 4]);
-      ctx.strokeStyle = 'rgba(160,150,255,0.35)';
-      ctx.fillStyle = 'rgba(139,123,255,0.05)';
-      ctx.fill();
-    } else if (isSel) {
-      // Selected: a softly breathing glow.
-      ctx.shadowColor = ACCENT;
-      ctx.shadowBlur = 8 + 6 * Math.sin(now / 420);
-      ctx.strokeStyle = ACCENT;
-      ctx.lineWidth = 1.5;
-    } else {
-      // Hover: marching dashes.
-      ctx.setLineDash([3, 3]);
-      ctx.lineDashOffset = -now / 60;
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    }
-    ctx.stroke();
-    ctx.restore();
-    const z = st.zones.find((zz) => zz.id === l.zoneId);
-    const name = st.scene.zones[l.zoneId]?.label || z?.name || '';
-    const ly = bb.y - pad - 1.6 < 2 ? bb.y + bb.h + pad + 2.4 : bb.y - pad - 1.6;
-    label(ctx, name, X(bb.x + bb.w / 2), Y(ly), s, isSel ? '#d9d3ff' : 'rgba(255,255,255,0.6)', 600);
-  }
-}
-
-function unionRect(a: { x: number; y: number; w: number; h: number }, b: { x: number; y: number; w: number; h: number }) {
-  const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
-  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
-}
-
-/** Average color of the LEDs belonging to fan `group` within a zone. */
-function groupAverage(rgb: Uint8Array, l: ZoneLayout, group: number): [number, number, number] {
-  let r = 0, g = 0, b = 0, n = 0;
-  for (let i = 0; i < l.points.length; i++) {
-    if (l.points[i].group !== group) continue;
-    r += rgb[i * 3] ?? 0;
-    g += rgb[i * 3 + 1] ?? 0;
-    b += rgb[i * 3 + 2] ?? 0;
-    n++;
-  }
-  return n ? [r / n, g / n, b / n] : [0, 0, 0];
-}
-
-/** Brighten dim LED colors a little so the preview reads like the real thing. */
-function lift(rgb: Uint8Array, i: number): string {
-  const r = rgb[i * 3] ?? 0, g = rgb[i * 3 + 1] ?? 0, b = rgb[i * 3 + 2] ?? 0;
-  const m = Math.max(r, g, b);
-  if (m === 0) return '28,31,40';
-  const k = Math.min(255 / m, 1 + (1 - m / 255) * 0.9);
-  return `${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)}`;
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, Math.min(r, w / 2, h / 2));
-}
-
-function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, s: number, color: string, weight = 500) {
-  ctx.font = `${weight} ${Math.max(10, 1.5 * s)}px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x, y);
 }

@@ -104,7 +104,12 @@ export interface Placement {
   x: number;
   y: number;
   rot: 0 | 1 | 2 | 3;
+  /** Size multiplier (1 = automatic size). */
+  scale?: number;
 }
+
+/** Unlit case parts the Build editor can move. */
+export type PartId = 'cpu' | 'board';
 
 export interface Scene {
   power: boolean;
@@ -114,6 +119,8 @@ export interface Scene {
   zones: Record<string, ZoneSettings>;
   /** The user's saved presets (built-ins live in shared/presets.ts). */
   presets: Preset[];
+  /** Build editor placements for the CPU and motherboard. */
+  parts?: Partial<Record<PartId, Placement>>;
   /** Preset the global effect was last loaded from or saved to, if any. */
   activePreset?: string;
 }

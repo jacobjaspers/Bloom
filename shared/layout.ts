@@ -2,7 +2,7 @@
 // Both the effect engine (server) and the stage preview (web) use this, so the
 // animation you see in the UI is computed over the same geometry as the hardware.
 
-import type { Placement, ZoneRuntime, ZoneSettings } from './types.ts';
+import type { PartId, Placement, ZoneRuntime, ZoneSettings } from './types.ts';
 
 export type { Placement };
 
@@ -224,19 +224,20 @@ function union(a: Rect, b: Rect): Rect {
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
 }
 
-/** Rotate by quarter turns around (cx, cy), then move that centre to (tx, ty). */
+/** Rotate by quarter turns and scale around the zone's centre, then move that centre to (p.x, p.y). */
 function place(base: ZoneLayout, p: Placement | undefined): ZoneLayout {
   if (!p) return base;
   const c = zoneCenter(base);
   const q = ((p.rot % 4) + 4) % 4;
+  const k = p.scale ?? 1;
   const tp = (x: number, y: number) => {
-    let dx = x - c.x, dy = y - c.y;
+    let dx = (x - c.x) * k, dy = (y - c.y) * k;
     for (let i = 0; i < q; i++) [dx, dy] = [-dy, dx]; // 90° clockwise on screen
     return { x: p.x + dx, y: p.y + dy };
   };
   const tr = (r: Rect): Rect => {
     const m = tp(r.x + r.w / 2, r.y + r.h / 2);
-    const [w, h] = q % 2 ? [r.h, r.w] : [r.w, r.h];
+    const [w, h] = q % 2 ? [r.h * k, r.w * k] : [r.w * k, r.h * k];
     return { x: m.x - w / 2, y: m.y - h / 2, w, h };
   };
   return {
@@ -248,7 +249,7 @@ function place(base: ZoneLayout, p: Placement | undefined): ZoneLayout {
     shapes: base.shapes.map((s): Shape => {
       if (s.type === 'fan') {
         const m = tp(s.cx, s.cy);
-        return { ...s, cx: m.x, cy: m.y };
+        return { ...s, cx: m.x, cy: m.y, r: s.r * k };
       }
       if (s.type === 'stick') {
         const r = tr(s);
@@ -262,13 +263,40 @@ function place(base: ZoneLayout, p: Placement | undefined): ZoneLayout {
   };
 }
 
-/** Keep a placement's centre inside the case. */
+export const MIN_SCALE = 0.4;
+export const MAX_SCALE = 2.5;
+
+/** Keep a placement's centre inside the case and its size sensible. */
 export function clampPlacement(p: Placement): Placement {
   const k = SCENE.case;
   const r = Math.round(((p.rot % 4) + 4) % 4) as Placement['rot'];
+  const scale = Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, p.scale ?? 1)) * 100) / 100;
   return {
     x: Math.min(k.x + k.w - 2, Math.max(k.x + 2, p.x)),
     y: Math.min(k.y + k.h - 2, Math.max(k.y + 2, p.y)),
     rot: r,
+    ...(scale !== 1 && { scale }),
   };
+}
+
+/** Place a plain rectangle (CPU, motherboard). */
+export function placeRect(base: Rect, p: Placement | undefined): Rect {
+  if (!p) return base;
+  const k = p.scale ?? 1;
+  const [w, h] = p.rot % 2 ? [base.h * k, base.w * k] : [base.w * k, base.h * k];
+  return { x: p.x - w / 2, y: p.y - h / 2, w, h };
+}
+
+/** Where the CPU and motherboard are drawn, after any Build editor changes. */
+export function layoutParts(parts: Partial<Record<PartId, Placement>> | undefined): Record<PartId, Rect> {
+  return {
+    board: placeRect(SCENE.board, parts?.board),
+    cpu: placeRect(SCENE.cpu, parts?.cpu),
+  };
+}
+
+/** The CPU's centre in normalised scene coordinates (Ripple radiates from here). */
+export function cpuOrigin(parts: Partial<Record<PartId, Placement>> | undefined): { nx: number; ny: number } {
+  const c = layoutParts(parts).cpu;
+  return { nx: (c.x + c.w / 2) / SCENE_W, ny: (c.y + c.h / 2) / SCENE_H };
 }

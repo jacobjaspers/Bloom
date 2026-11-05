@@ -1526,6 +1526,43 @@ code {
   white-space: nowrap;
 }
 
+.stage-hint strong {
+  color: #d9d3ff;
+  font-weight: 600;
+}
+
+.tool-group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+}
+
+.tool-group .icon-btn {
+  width: 30px;
+  height: 28px;
+  font-size: 15px;
+}
+
+.ghost-btn.danger {
+  border-color: rgba(255, 92, 108, 0.6);
+  color: #ffb3bb;
+  background: rgba(255, 92, 108, 0.12);
+  animation: rise 0.2s ease both;
+}
+
+.ghost-btn.danger:hover {
+  background: rgba(255, 92, 108, 0.22);
+  color: #fff;
+}
+
+.ghost-btn.tiny {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
 .ghost-btn.glass {
   background: rgba(13, 15, 21, 0.6);
   backdrop-filter: blur(8px);

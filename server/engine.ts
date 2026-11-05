@@ -2,7 +2,7 @@
 // brightness, push bytes to the hardware and publish a preview frame for the UI.
 
 import { createRenderer, type Renderer } from '../shared/effects.ts';
-import { layoutScene, type ZoneLayout } from '../shared/layout.ts';
+import { cpuOrigin, layoutScene, type ZoneLayout } from '../shared/layout.ts';
 import { FRAME_MARKER, type ColorOrder, type DeviceStatus, type Scene, type ZoneInfo, type ZoneRuntime } from '../shared/types.ts';
 import { reconcile, saveScene } from './config.ts';
 import type { LightDevice } from './devices/device.ts';
@@ -88,11 +88,12 @@ export class Engine {
     [...this.zones]
       .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
       .forEach((z, i) => this.introOrder.set(z.id, i));
-    this.globalRenderer = createRenderer(this.scene.effect);
+    const opts = { origin: cpuOrigin(this.scene.parts) };
+    this.globalRenderer = createRenderer(this.scene.effect, opts);
     this.zoneRenderers.clear();
     for (const z of this.zones) {
       const s = this.scene.zones[z.id];
-      if (!s.synced) this.zoneRenderers.set(z.id, createRenderer(s.effect));
+      if (!s.synced) this.zoneRenderers.set(z.id, createRenderer(s.effect, opts));
     }
     if (persist) saveScene(this.scene);
   }

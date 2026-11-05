@@ -116,14 +116,14 @@ export function App() {
               selected={selected}
               onSelect={setSelected}
               intro={intro === 'playing'}
-              onPlace={(id, place) =>
+              onSetLayout={(layout) =>
                 updateScene((sc) => {
-                  if (sc.zones[id]) sc.zones[id].place = place;
-                })
-              }
-              onResetLayout={() =>
-                updateScene((sc) => {
-                  for (const z of Object.values(sc.zones)) delete z.place;
+                  for (const [id, z] of Object.entries(sc.zones)) {
+                    const p = layout.zones[id];
+                    if (p) z.place = p;
+                    else delete z.place;
+                  }
+                  sc.parts = layout.parts;
                 })
               }
             />

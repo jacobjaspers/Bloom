@@ -75,6 +75,7 @@ export function reconcile(scene: Scene, zones: ZoneInfo[]): Scene {
   next.brightness = clamp(next.brightness, 0, 100, 80);
   next.power = next.power !== false;
   if (typeof next.activePreset !== 'string') delete next.activePreset;
+  next.parts = sanitizeParts(next.parts);
 
   for (const z of zones) {
     const cur = next.zones[z.id];
@@ -92,11 +93,23 @@ export function reconcile(scene: Scene, zones: ZoneInfo[]): Scene {
     if (!ORDERS.includes(s.colorOrder)) s.colorOrder = 'RGB';
     const p = s.place as Partial<Placement> | undefined;
     if (p && typeof p.x === 'number' && typeof p.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-      s.place = clampPlacement({ x: p.x, y: p.y, rot: (typeof p.rot === 'number' ? p.rot : 0) as Placement['rot'] });
+      s.place = clampPlacement({ x: p.x, y: p.y, rot: (typeof p.rot === 'number' ? p.rot : 0) as Placement['rot'], scale: typeof p.scale === 'number' ? p.scale : 1 });
     } else {
       delete s.place;
     }
     next.zones[z.id] = s;
   }
   return next;
+}
+
+function sanitizeParts(v: unknown): Scene['parts'] {
+  const out: NonNullable<Scene['parts']> = {};
+  if (!v || typeof v !== 'object') return out;
+  for (const id of ['cpu', 'board'] as const) {
+    const p = (v as Record<string, Partial<Placement> | undefined>)[id];
+    if (p && typeof p.x === 'number' && typeof p.y === 'number' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+      out[id] = clampPlacement({ x: p.x, y: p.y, rot: (typeof p.rot === 'number' ? p.rot : 0) as Placement['rot'], scale: typeof p.scale === 'number' ? p.scale : 1 });
+    }
+  }
+  return out;
 }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { newKey } from '../../../shared/effects.ts';
 import { BUILTIN_PRESETS } from '../../../shared/presets.ts';
 import { sanitizePresets } from '../../../shared/stack.ts';
@@ -38,6 +38,13 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
   const [naming, setNaming] = useState<null | { mode: 'new' } | { mode: 'rename'; id: string }>(null);
   const [name, setName] = useState('');
   const [notice, setNotice] = useState('');
+  // Two-click delete (browser confirm dialogs can be blocked in embedded browsers).
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingDelete) return;
+    const t = window.setTimeout(() => setPendingDelete(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [pendingDelete]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const all = [...BUILTIN_PRESETS, ...scene.presets];
@@ -102,21 +109,27 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
             <button type="button" className="icon-btn" title="Export" aria-label={`Export ${p.name}`} onClick={() => download(`lumen-${slug(p.name)}.json`, { app: 'lumen', version: 1, presets: [p] })}>
               ⤓
             </button>
-            <button
-              type="button"
-              className="icon-btn"
-              title="Delete"
-              aria-label={`Delete ${p.name}`}
-              onClick={() => {
-                if (!window.confirm(`Delete the preset “${p.name}”?`)) return;
-                update((s) => {
-                  s.presets = s.presets.filter((x) => x.id !== p.id);
-                  if (s.activePreset === p.id) delete s.activePreset;
-                });
-              }}
-            >
-              <TrashIcon />
-            </button>
+            {pendingDelete === p.id ? (
+              <button
+                type="button"
+                className="ghost-btn danger tiny"
+                aria-label={`Confirm delete ${p.name}`}
+                onClick={() => {
+                  setPendingDelete(null);
+                  update((s) => {
+                    s.presets = s.presets.filter((x) => x.id !== p.id);
+                    if (s.activePreset === p.id) delete s.activePreset;
+                  });
+                  flash(`Deleted “${p.name}”`);
+                }}
+              >
+                Delete?
+              </button>
+            ) : (
+              <button type="button" className="icon-btn" title="Delete" aria-label={`Delete ${p.name}`} onClick={() => setPendingDelete(p.id)}>
+                <TrashIcon />
+              </button>
+            )}
           </div>
         )}
       </div>
