@@ -1,4 +1,4 @@
-// Scene persistence (%APPDATA%\Lumen\scene.json) and defaults.
+// Scene persistence (%APPDATA%\Bloom\scene.json) and defaults.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,7 +8,7 @@ import { sanitizePresets, sanitizeStack } from '../shared/stack.ts';
 import { clampPlacement } from '../shared/layout.ts';
 import type { ColorOrder, EffectStack, Placement, Scene, ZoneInfo, ZoneSettings } from '../shared/types.ts';
 
-const dir = path.join(process.env.APPDATA ?? path.join(os.homedir(), '.config'), 'Lumen');
+const dir = path.join(process.env.APPDATA ?? path.join(os.homedir(), '.config'), 'Bloom');
 let file = path.join(dir, 'scene.json');
 
 /** Demo mode keeps its own file so it never overwrites the real rig's settings. */
@@ -40,7 +40,23 @@ export function defaultScene(): Scene {
   return { power: true, brightness: 80, effect: defaultEffect(), zones: {}, presets: [], activePreset: BUILTIN_PRESETS[0].id };
 }
 
+/** The project was called Lumen before; carry its saved scene over the first time. */
+function migrateLegacyScene(): void {
+  if (fs.existsSync(file)) return;
+  const legacy = path.join(path.dirname(dir), 'Lumen', path.basename(file));
+  try {
+    if (fs.existsSync(legacy)) {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.copyFileSync(legacy, file);
+      console.log(`[bloom] imported settings from ${legacy}`);
+    }
+  } catch (err) {
+    console.warn('[bloom] could not import old Lumen settings:', err);
+  }
+}
+
 export function loadScene(): Scene {
+  migrateLegacyScene();
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<Scene>;
     // A saved scene only has an active preset if it recorded one.
@@ -58,7 +74,7 @@ export function saveScene(scene: Scene): void {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(file, JSON.stringify(scene, null, 2));
     } catch (err) {
-      console.warn('[lumen] could not save scene:', err);
+      console.warn('[bloom] could not save scene:', err);
     }
   }, 400);
 }

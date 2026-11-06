@@ -67,7 +67,7 @@ export class AsrockPolychrome implements LightDevice {
         name: this.name,
         state: 'error',
         detail: errorMessage(err),
-        hint: 'Another app (SignalRGB, Polychrome Sync, OpenRGB) may be holding the controller. Quit it and restart Lumen.',
+        hint: 'Another app (SignalRGB, Polychrome Sync, OpenRGB) may be holding the controller. Quit it and restart Bloom.',
       };
     }
   }

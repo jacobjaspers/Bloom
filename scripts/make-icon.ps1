@@ -1,9 +1,9 @@
-# Renders the Lumen logo (a cyan -> violet -> pink gradient ring) into a multi-size
-# Windows .ico at assets\lumen.ico. Run once; the result is committed.
+# Renders the Bloom logo (a cyan -> violet -> pink gradient ring) into a multi-size
+# Windows .ico at assets\bloom.ico. Run once; the result is committed.
 
 Add-Type -AssemblyName System.Drawing
 $ErrorActionPreference = 'Stop'
-$out = Join-Path $PSScriptRoot '..\assets\lumen.ico'
+$out = Join-Path $PSScriptRoot '..\assets\bloom.ico'
 New-Item -ItemType Directory -Force -Path (Split-Path $out) | Out-Null
 
 function Render([int]$size) {

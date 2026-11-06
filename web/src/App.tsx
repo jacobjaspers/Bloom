@@ -5,13 +5,13 @@ import { HELP } from './help.ts';
 import { GlobalInspector, ZoneInspector } from './components/Inspector.tsx';
 import { Stage } from './components/Stage.tsx';
 import { DeviceList, ZoneList } from './components/ZoneList.tsx';
-import { useLumen } from './useLumen.ts';
+import { useBloom } from './useBloom.ts';
 
 /** How long the startup sequence plays when the dashboard opens. */
 export const INTRO_MS = 2600;
 
 export function App() {
-  const { state, frames, updateScene, identify } = useLumen();
+  const { state, frames, updateScene, identify } = useBloom();
   const [selected, setSelected] = useState<string | null>(null);
   const { scene, zones, devices, connected, demo } = state;
   const zone = zones.find((z) => z.id === selected) ?? null;
@@ -36,7 +36,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">
           <span className="logo" aria-hidden="true" />
-          <span className="wordmark">Lumen</span>
+          <span className="wordmark">Bloom</span>
           <span className={`conn ${connected ? 'ok' : ''}`}>{connected ? (demo ? 'Demo' : 'Live') : 'Connecting…'}</span>
         </div>
         {scene && (
@@ -84,7 +84,7 @@ export function App() {
       {!scene ? (
         <main className="loading">
           <div className="spinner" aria-hidden="true" />
-          <p>Waiting for the Lumen service on this PC…</p>
+          <p>Waiting for the Bloom service on this PC…</p>
           <p className="hint">Start it with <code>npm start</code></p>
         </main>
       ) : (

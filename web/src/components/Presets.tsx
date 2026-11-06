@@ -147,7 +147,7 @@ export function Presets({
               className="icon-btn"
               title="Export"
               aria-label={`Export ${p.name}`}
-              onClick={() => download(`lumen-${slug(p.name)}.json`, { app: 'lumen', version: 1, presets: [p] })}
+              onClick={() => download(`bloom-${slug(p.name)}.json`, { app: 'bloom', version: 1, presets: [p] })}
             >
               ⤓
             </button>
@@ -193,7 +193,7 @@ export function Presets({
             type="button"
             className="ghost-btn"
             disabled={!scene.presets.length}
-            onClick={() => download('lumen-presets.json', { app: 'lumen', version: 1, presets: scene.presets })}
+            onClick={() => download('bloom-presets.json', { app: 'bloom', version: 1, presets: scene.presets })}
           >
             Export all
           </button>
@@ -218,7 +218,7 @@ export function Presets({
             });
             flash(`Imported ${incoming.length} preset${incoming.length === 1 ? '' : 's'}`);
           } catch {
-            flash('That file isn’t a Lumen preset file');
+            flash('That file isn’t a Bloom preset file');
           }
         }}
       />

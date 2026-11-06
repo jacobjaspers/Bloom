@@ -5,9 +5,9 @@
 import { useEffect, useState } from 'react';
 import type { ZoneRuntime } from '../../shared/types.ts';
 import { subscribeFrame } from './frameLoop.ts';
-import type { FrameStore } from './useLumen.ts';
+import type { FrameStore } from './useBloom.ts';
 
-const KEY = 'lumen.ambient';
+const KEY = 'bloom.ambient';
 const FALLBACK: [number, number, number][] = [
   [0, 216, 255],
   [139, 123, 255],
@@ -17,7 +17,7 @@ const FALLBACK: [number, number, number][] = [
 export function useAmbientSetting(): [boolean, (on: boolean) => void] {
   const [on, setOn] = useState(() => {
     try {
-      return localStorage.getItem(KEY) !== '0';
+      return (localStorage.getItem(KEY) ?? localStorage.getItem('lumen.ambient')) !== '0';
     } catch {
       return true;
     }

@@ -1,4 +1,4 @@
-# Lumen
+# Bloom
 
 A lightweight RGB lighting controller for my PC. It's a from-scratch alternative to SignalRGB, built around the hardware I actually own:
 
@@ -14,10 +14,10 @@ A local Node service owns the hardware and runs a 30 fps effect engine. A React 
 
 - **One effect engine, two consumers.** Effects are pure functions of `(time, LED position) → color` in [`shared/effects.ts`](shared/effects.ts). The server runs them for the hardware, and the UI runs the *same code* for the animated effect thumbnails.
 - **Layered effect editor.** Each effect is a *field* that returns a gradient position and a brightness. A shared pipeline then applies gradient palettes (up to 12 stops), motion curves (smooth, linear, pulse, hard, saw), contrast, brightness range, hue drift and per-device offset. Up to 6 layers stack with Normal, Add, Screen or Multiply blending.
-- **Presets.** 10 built-ins, plus your own: save, update, rename, delete, and import/export as JSON. Imported files are validated by the same sanitizer the server uses ([`shared/stack.ts`](shared/stack.ts)), and Lumen 0.1 scenes are migrated automatically.
+- **Presets.** 11 built-ins (including a hidden-in-plain-sight developer favorite), plus your own: save, update, rename, delete, and import/export as JSON. Imported files are validated by the same sanitizer the server uses ([`shared/stack.ts`](shared/stack.ts)), and settings from earlier versions (including the project's old name, Lumen) are migrated automatically.
 - **Spatial effects.** Every LED gets a position in a virtual case ([`shared/layout.ts`](shared/layout.ts)), so waves, ripples and aurora flow across fans *and* RAM as one scene instead of looping per device.
 - **Live preview, not a mock-up.** The stage canvas draws the exact bytes being sent to the hardware, streamed as compact binary frames.
-- **SMBus safety guard.** RAM lighting shares a bus with the DIMMs' SPD EEPROMs. Every SMBus transaction goes through an allow-list ([`smbus.ts`](server/smbus/smbus.ts)) that hard-refuses the SPD ranges, and the system-wide `Access_SMBUS.HTP.Method` mutex is held so Lumen never collides with hardware monitors like HWiNFO.
+- **SMBus safety guard.** RAM lighting shares a bus with the DIMMs' SPD EEPROMs. Every SMBus transaction goes through an allow-list ([`smbus.ts`](server/smbus/smbus.ts)) that hard-refuses the SPD ranges, and the system-wide `Access_SMBUS.HTP.Method` mutex is held so Bloom never collides with hardware monitors like HWiNFO.
 - **Demo mode.** `npm run demo` simulates the full rig, so the UI runs on any machine.
 - **No build step for the server.** Node ≥ 23.6 runs the TypeScript directly (type stripping).
 
@@ -41,23 +41,23 @@ UI development with hot reload: run `npm start` (or `npm run demo`) in one termi
 
 ### Enabling RAM lighting
 
-RAM is controlled over SMBus, which Windows only exposes to kernel drivers. Lumen uses **PawnIO**, a signed driver that runs small, sandboxed modules (the same approach OpenRGB and LibreHardwareMonitor use):
+RAM is controlled over SMBus, which Windows only exposes to kernel drivers. Bloom uses **PawnIO**, a signed driver that runs small, sandboxed modules (the same approach OpenRGB and LibreHardwareMonitor use):
 
 1. Install PawnIO from https://pawnio.eu.
 2. Put `SmbusI801.bin` (from the [PawnIO.Modules releases](https://github.com/namazso/PawnIO.Modules/releases)) in `server/smbus/modules/`.
-3. Start Lumen as **administrator**. Double-clicking `start-lumen.cmd` does this for you and opens the panel.
+3. Start Bloom as **administrator**. Double-clicking `start-bloom.cmd` does this for you and opens the panel.
 
 ### Desktop shortcut
 
-`scripts/install-shortcut.ps1` adds a **Lumen** shortcut (with the Lumen icon) to the desktop and Start menu. It opens the control panel in its own app window, with no tabs or address bar, and starts the Lumen service first if it isn't running.
+`scripts/install-shortcut.ps1` adds a **Bloom** shortcut (with the Bloom icon) to the desktop and Start menu. It opens the control panel in its own app window, with no tabs or address bar, and starts the Bloom service first if it isn't running.
 
 ### Start at sign-in
 
-`scripts/install-autostart.ps1` (run in an admin PowerShell) registers a **Lumen RGB** scheduled task. It starts Lumen hidden, with admin rights, 10 seconds after you sign in, and restarts it if it crashes. The log goes to `%LOCALAPPDATA%\Lumen\lumen.log`. `scripts/uninstall-autostart.ps1` removes the task. With the task running, `start-lumen.cmd` just opens the panel.
+`scripts/install-autostart.ps1` (run in an admin PowerShell) registers a **Bloom RGB** scheduled task. It starts Bloom hidden, with admin rights, 10 seconds after you sign in, and restarts it if it crashes. The log goes to `%LOCALAPPDATA%\Bloom\bloom.log`. `scripts/uninstall-autostart.ps1` removes the task. With the task running, `start-bloom.cmd` just opens the panel.
 
 If every SMBus transfer times out, another driver has left the controller's hardware "in use" flag set. This happens when an RGB app is force-closed mid-transfer. Disable that app at startup and reboot. `node scripts/smbus-diag.ts` (run as admin) shows the raw result codes and only performs reads.
 
-**Gigabyte GPU (I2C over NvAPI).** `nvapi64.dll` exports only `nvapi_QueryInterface(id)`, which returns each function's address. Lumen calls `NvAPI_I2CWriteEx`/`ReadEx` through those addresses with an `NV_I2C_INFO_V3` (64 bytes, address shifted left by 1, port 1). The controller takes 8-byte raw writes: `AB` is a handshake (it replies `AB 10 00 01`), `88 01 06 63 08 <zone>` sets static mode, and `40 R G B <zone>` sets the color.
+**Gigabyte GPU (I2C over NvAPI).** `nvapi64.dll` exports only `nvapi_QueryInterface(id)`, which returns each function's address. Bloom calls `NvAPI_I2CWriteEx`/`ReadEx` through those addresses with an `NV_I2C_INFO_V3` (64 bytes, address shifted left by 1, port 1). The controller takes 8-byte raw writes: `AB` is a handshake (it replies `AB 10 00 01`), `88 01 06 63 08 <zone>` sets static mode, and `40 R G B <zone>` sets the color.
 
 ## Project layout
 

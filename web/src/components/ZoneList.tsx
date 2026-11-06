@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { DeviceStatus, Scene, ZoneKind, ZoneRuntime } from '../../../shared/types.ts';
 import { fitCanvas, subscribeFrame } from '../frameLoop.ts';
-import type { FrameStore } from '../useLumen.ts';
+import type { FrameStore } from '../useBloom.ts';
 import { HELP } from '../help.ts';
 import { InfoTip, Toggle } from './controls.tsx';
 

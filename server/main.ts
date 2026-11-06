@@ -1,4 +1,4 @@
-// Lumen server: owns the hardware, runs the effect engine, serves the UI and
+// Bloom server: owns the hardware, runs the effect engine, serves the UI and
 // streams live LED frames over a WebSocket. Binds to localhost only.
 
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ import { demoDevices } from './devices/simulated.ts';
 import { Engine } from './engine.ts';
 
 const demo = process.argv.includes('--demo');
-const PORT = Number(process.env.LUMEN_PORT ?? 7420);
+const PORT = Number(process.env.BLOOM_PORT ?? 7420);
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.join(here, '..', 'web', 'dist');
 
@@ -106,7 +106,7 @@ engine.onFrame = (frame) => {
 };
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[lumen] ${demo ? 'DEMO MODE · ' : ''}control panel → http://localhost:${PORT}`);
+  console.log(`[bloom] ${demo ? 'DEMO MODE · ' : ''}control panel → http://localhost:${PORT}`);
 });
 
 function shutdown() {

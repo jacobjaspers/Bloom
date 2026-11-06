@@ -271,7 +271,7 @@ export function Section({ title, children, aside, info }: { title: string; child
   );
 }
 
-const OPEN_EVENT = 'lumen:open-panel';
+const OPEN_EVENT = 'bloom:open-panel';
 
 /** Unfold a Panel by id and scroll it into view. */
 export function openPanel(id: string): void {
@@ -280,7 +280,8 @@ export function openPanel(id: string): void {
 
 function readOpen(key: string, fallback: boolean): boolean {
   try {
-    const v = localStorage.getItem(`lumen.panel.${key}`);
+    // Fall back to the pre-rename (Lumen) key so remembered panels survive the rename.
+    const v = localStorage.getItem(`bloom.panel.${key}`) ?? localStorage.getItem(`lumen.panel.${key}`);
     return v === null ? fallback : v === '1';
   } catch {
     return fallback;
@@ -321,7 +322,7 @@ export function Panel({
       if ((e as CustomEvent<string>).detail !== id) return;
       setOpen(true);
       try {
-        localStorage.setItem(`lumen.panel.${id}`, '1');
+        localStorage.setItem(`bloom.panel.${id}`, '1');
       } catch {
         /* per-visit only */
       }
@@ -334,7 +335,7 @@ export function Panel({
   const toggle = () => {
     setOpen((o) => {
       try {
-        localStorage.setItem(`lumen.panel.${id}`, o ? '0' : '1');
+        localStorage.setItem(`bloom.panel.${id}`, o ? '0' : '1');
       } catch {
         /* storage unavailable: still works for this visit */
       }

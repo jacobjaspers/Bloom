@@ -1,5 +1,5 @@
-# Removes the "Lumen RGB" sign-in task and stops a running Lumen. Run from an elevated PowerShell.
-$TaskName = 'Lumen RGB'
+# Removes the "Bloom RGB" sign-in task and stops a running Bloom. Run from an elevated PowerShell.
+$TaskName = 'Bloom RGB'
 Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |

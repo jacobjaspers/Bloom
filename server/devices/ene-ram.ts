@@ -53,7 +53,7 @@ interface Stick {
 }
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const MODULE_PATH = process.env.LUMEN_SMBUS_MODULE ?? path.join(here, '..', 'smbus', 'modules', 'SmbusI801.bin');
+const MODULE_PATH = process.env.BLOOM_SMBUS_MODULE ?? path.join(here, '..', 'smbus', 'modules', 'SmbusI801.bin');
 
 const sleep = (ms: number) => {
   const end = Date.now() + ms;
@@ -134,8 +134,8 @@ export class EneRam implements LightDevice {
             ? `${raw.name} is locked: every transfer times out`
             : `No ENE RAM controllers found on ${raw.name}`,
           hint: locked
-            ? 'Another driver left the SMBus controller busy. Disable SignalRGB at startup, reboot, then start Lumen as administrator.'
-            : 'If SignalRGB or another RGB app is running, quit it and restart Lumen.',
+            ? 'Another driver left the SMBus controller busy. Disable SignalRGB at startup, reboot, then start Bloom as administrator.'
+            : 'If SignalRGB or another RGB app is running, quit it and restart Bloom.',
         };
         this.close();
         return;
@@ -151,9 +151,9 @@ export class EneRam implements LightDevice {
       this.close();
       const e = err as PawnIoError;
       const hints: Record<string, string> = {
-        'no-driver': 'Install the PawnIO driver from pawnio.eu, then restart Lumen.',
+        'no-driver': 'Install the PawnIO driver from pawnio.eu, then restart Bloom.',
         'no-module': 'Download SmbusI801.bin from the PawnIO.Modules releases into server/smbus/modules/.',
-        'access-denied': 'Start Lumen from an administrator terminal to control RAM lighting.',
+        'access-denied': 'Start Bloom from an administrator terminal to control RAM lighting.',
       };
       this.state = {
         id: this.id,

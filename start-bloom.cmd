@@ -1,5 +1,5 @@
 @echo off
-rem Opens the Lumen control panel. If Lumen isn't already running (e.g. via the
+rem Opens the Bloom control panel. If Bloom isn't already running (e.g. via the
 rem sign-in task), starts it with administrator rights first (needed for RAM lighting).
 curl -s -o nul --max-time 2 http://localhost:7420/ && (
   start "" http://localhost:7420

@@ -58,7 +58,7 @@ export class Engine {
     for (const d of this.devices) {
       await d.open();
       const s = d.status();
-      console.log(`[lumen] ${s.name}: ${s.state} — ${s.detail}${s.hint ? `\n         ↳ ${s.hint}` : ''}`);
+      console.log(`[bloom] ${s.name}: ${s.state} — ${s.detail}${s.hint ? `\n         ↳ ${s.hint}` : ''}`);
     }
     this.setScene(this.scene, false);
   }

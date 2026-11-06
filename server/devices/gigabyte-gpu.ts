@@ -69,7 +69,7 @@ export class GigabyteGpu implements LightDevice {
           name: this.name,
           state: 'error',
           detail: `RGB controller didn't answer at 0x${hex(card.address)}`,
-          hint: 'Close RGB Fusion / GIGABYTE Control Center if they are running, then restart Lumen.',
+          hint: 'Close RGB Fusion / GIGABYTE Control Center if they are running, then restart Bloom.',
         };
         this.close();
         return;

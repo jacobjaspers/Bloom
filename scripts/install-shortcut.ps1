@@ -1,14 +1,14 @@
-# Creates a "Lumen" shortcut on your desktop (and in the Start menu) that opens the
+# Creates a "Bloom" shortcut on your desktop (and in the Start menu) that opens the
 # control panel in its own window. Safe to run again; it just updates the shortcuts.
 
 $root = Split-Path $PSScriptRoot -Parent
-$launcher = Join-Path $PSScriptRoot 'open-lumen.ps1'
-$icon = Join-Path $root 'assets\lumen.ico'
+$launcher = Join-Path $PSScriptRoot 'open-bloom.ps1'
+$icon = Join-Path $root 'assets\bloom.ico'
 $shell = New-Object -ComObject WScript.Shell
 
 $targets = @(
-  (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Lumen.lnk'),
-  (Join-Path ([Environment]::GetFolderPath('Programs')) 'Lumen.lnk')
+  (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Bloom.lnk'),
+  (Join-Path ([Environment]::GetFolderPath('Programs')) 'Bloom.lnk')
 )
 foreach ($path in $targets) {
   $lnk = $shell.CreateShortcut($path)
@@ -16,7 +16,7 @@ foreach ($path in $targets) {
   $lnk.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`""
   $lnk.WorkingDirectory = $root
   $lnk.IconLocation = "$icon,0"
-  $lnk.Description = 'Lumen RGB control panel'
+  $lnk.Description = 'Bloom RGB control panel'
   $lnk.WindowStyle = 7 # start minimised so no console flashes
   $lnk.Save()
   Write-Host "Created $path"

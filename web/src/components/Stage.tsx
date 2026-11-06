@@ -15,7 +15,7 @@ import {
 import type { DeviceStatus, PartId, Placement, Scene, ZoneRuntime } from '../../../shared/types.ts';
 import { HELP } from '../help.ts';
 import { fitCanvas, subscribeFrame } from '../frameLoop.ts';
-import type { FrameStore } from '../useLumen.ts';
+import type { FrameStore } from '../useBloom.ts';
 import { InfoTip } from './controls.tsx';
 import { draw, HANDLE, unionRect } from './stageDraw.ts';
 

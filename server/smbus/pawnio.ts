@@ -35,7 +35,7 @@ export class PawnIoError extends Error {
 }
 
 const DLL_CANDIDATES = [
-  process.env.LUMEN_PAWNIO_DLL,
+  process.env.BLOOM_PAWNIO_DLL,
   path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'PawnIO', 'PawnIOLib.dll'),
   path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PawnIOLib.dll'),
 ].filter((p): p is string => !!p);
@@ -81,7 +81,7 @@ export class PawnIoSmbus implements SmbusHost {
     const out = [null];
     const hr = open(out) as number;
     if (hr === E_ACCESSDENIED) {
-      throw new PawnIoError('access-denied', 'PawnIO needs administrator rights — run Lumen as administrator');
+      throw new PawnIoError('access-denied', 'PawnIO needs administrator rights — run Bloom as administrator');
     }
     if (hr !== 0) throw new PawnIoError('open', `pawnio_open failed (0x${(hr >>> 0).toString(16)})`);
     this.handle = out[0];

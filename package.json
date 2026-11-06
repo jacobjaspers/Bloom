@@ -1,5 +1,5 @@
 {
-  "name": "lumen",
+  "name": "bloom",
   "version": "0.1.0",
   "private": true,
   "description": "A lightweight, open RGB lighting controller for ASRock Polychrome ARGB headers and ENE-based DDR4 RAM (G.Skill Trident Z RGB).",

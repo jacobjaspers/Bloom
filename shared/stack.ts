@@ -50,7 +50,7 @@ export function sanitizeLayer(v: unknown): Layer | null {
   };
 }
 
-/** Effect config from Lumen 0.1 ({ id, colors, speed, size, direction }) → one-layer stack. */
+/** Effect config from Bloom 0.1 ({ id, colors, speed, size, direction }) → one-layer stack. */
 function fromLegacy(v: Obj): EffectStack | null {
   const colors = Array.isArray(v.colors) ? v.colors.filter((c): c is string => typeof c === 'string') : [];
   const angleOf: Record<string, number> = { right: 0, up: 90, left: 180, down: 270 };

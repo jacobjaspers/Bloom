@@ -1,14 +1,14 @@
-# Registers a Windows scheduled task that starts Lumen silently, with admin rights,
+# Registers a Windows scheduled task that starts Bloom silently, with admin rights,
 # when you sign in. Admin rights are needed for RAM lighting (PawnIO / SMBus).
 # Run from an elevated PowerShell. Undo with scripts\uninstall-autostart.ps1.
 
 $ErrorActionPreference = 'Stop'
-$TaskName = 'Lumen RGB'
+$TaskName = 'Bloom RGB'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Node = (Get-Command node -ErrorAction Stop).Source
-$LogDir = Join-Path $env:LOCALAPPDATA 'Lumen'
+$LogDir = Join-Path $env:LOCALAPPDATA 'Bloom'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-$Log = Join-Path $LogDir 'lumen.log'
+$Log = Join-Path $LogDir 'bloom.log'
 
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -34,6 +34,6 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 $taskPrincipal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
-  -Principal $taskPrincipal -Description 'Starts the Lumen RGB lighting service at sign-in.' -Force | Out-Null
+  -Principal $taskPrincipal -Description 'Starts the Bloom RGB lighting service at sign-in.' -Force | Out-Null
 
 Write-Host "Installed scheduled task '$TaskName'. Log: $Log"

@@ -8,7 +8,7 @@ import {
   type ZoneRuntime,
 } from '../../shared/types.ts';
 
-export interface LumenState {
+export interface BloomState {
   connected: boolean;
   demo: boolean;
   scene: Scene | null;
@@ -19,8 +19,8 @@ export interface LumenState {
 /** Latest LED colors per zone id (RGB bytes), updated ~30×/s without re-rendering React. */
 export type FrameStore = { current: Map<string, Uint8Array> };
 
-export function useLumen() {
-  const [state, setState] = useState<LumenState>({ connected: false, demo: false, scene: null, zones: [], devices: [] });
+export function useBloom() {
+  const [state, setState] = useState<BloomState>({ connected: false, demo: false, scene: null, zones: [], devices: [] });
   const ws = useRef<WebSocket | null>(null);
   const zonesRef = useRef<ZoneRuntime[]>([]);
   const frames: FrameStore = useRef(new Map<string, Uint8Array>());
