@@ -6,6 +6,7 @@ import { GlobalInspector, ZoneInspector } from './components/Inspector.tsx';
 import { Stage } from './components/Stage.tsx';
 import { DeviceList, ZoneList } from './components/ZoneList.tsx';
 import { useBloom } from './useBloom.ts';
+import { ConflictBanner, useWelcome, Welcome } from './components/Welcome.tsx';
 
 /** How long the startup sequence plays when the dashboard opens. */
 export const INTRO_MS = 2600;
@@ -13,23 +14,25 @@ export const INTRO_MS = 2600;
 export function App() {
   const { state, frames, updateScene, identify } = useBloom();
   const [selected, setSelected] = useState<string | null>(null);
-  const { scene, zones, devices, connected, demo } = state;
+  const { scene, zones, devices, connected, demo, conflicts } = state;
+  const [welcomeOpen, closeWelcome] = useWelcome();
   const zone = zones.find((z) => z.id === selected) ?? null;
   const [ambient, setAmbient] = useAmbientSetting();
   useAmbientGlow(frames, zones, ambient);
 
   // Play the intro once, the first time the dashboard has something to show.
   const [intro, setIntro] = useState<'pending' | 'playing' | 'done'>('pending');
+  const hasScene = !!scene;
   useEffect(() => {
-    if (!scene || intro !== 'pending') return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setIntro('done');
-      return;
-    }
-    setIntro('playing');
+    if (!hasScene || intro !== 'pending') return;
+    setIntro(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'done' : 'playing');
+  }, [hasScene, intro]);
+  // Its own effect, so scene updates and the state change itself can't cancel the timer.
+  useEffect(() => {
+    if (intro !== 'playing') return;
     const t = window.setTimeout(() => setIntro('done'), INTRO_MS);
     return () => window.clearTimeout(t);
-  }, [scene, intro]);
+  }, [intro]);
 
   return (
     <div className={`app ${intro === 'playing' ? 'intro' : ''}`}>
@@ -114,6 +117,7 @@ export function App() {
 
           <aside className="panel">
             <div className="side-col">
+              <ConflictBanner apps={conflicts} />
               <Panel id="zones" title="Zones" info={HELP.zones} className="zones-panel">
                 <ZoneList
                   scene={scene}
@@ -144,6 +148,9 @@ export function App() {
             </div>
           </aside>
         </main>
+      )}
+      {scene && welcomeOpen && intro === 'done' && (
+        <Welcome devices={devices} zones={zones} conflicts={conflicts} onClose={closeWelcome} />
       )}
     </div>
   );

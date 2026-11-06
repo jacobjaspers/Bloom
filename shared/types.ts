@@ -156,6 +156,8 @@ export type ServerMessage =
       zones: ZoneRuntime[];
       devices: DeviceStatus[];
       demo: boolean;
+      /** Other RGB apps running right now that can fight Bloom for the hardware. */
+      conflicts: string[];
     }
   | { type: 'error'; message: string };
 

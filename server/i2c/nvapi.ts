@@ -158,7 +158,9 @@ export class NvI2c {
     if (len > NvI2c.MAX) throw new Error('I2C read too long');
     koffi.encode(this.buf, 'uint8_t', new Array(len).fill(0), len);
     const status = koffi.call(this.read, P.i2c, this.gpu.handle, this.info(addr, len), [0]) as number;
-    const data = Array.from(new Uint8Array(koffi.view(this.buf, len)));
+    // Copy the reply out (koffi.decode) instead of mapping native memory with koffi.view:
+    // Electron's V8 memory sandbox aborts the process on external ArrayBuffers.
+    const data = Array.from(koffi.decode(this.buf, 'uint8_t', len) as ArrayLike<number>);
     return { status, data };
   }
 

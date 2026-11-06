@@ -4,7 +4,6 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientMessage, ServerMessage } from '../shared/types.ts';
 import { loadScene, useSceneFile } from './config.ts';
@@ -14,11 +13,11 @@ import { GigabyteGpu } from './devices/gigabyte-gpu.ts';
 import { OpenRgbDevices } from './devices/openrgb.ts';
 import { demoDevices } from './devices/simulated.ts';
 import { Engine } from './engine.ts';
+import { WEB_DIST } from './paths.ts';
+import { watchConflicts } from './conflicts.ts';
 
 const demo = process.argv.includes('--demo');
 const PORT = Number(process.env.BLOOM_PORT ?? 7420);
-const here = path.dirname(fileURLToPath(import.meta.url));
-const WEB_DIST = path.join(here, '..', 'web', 'dist');
 
 if (demo) useSceneFile('scene-demo.json');
 
@@ -67,7 +66,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 function stateMessage(): ServerMessage {
-  return { type: 'state', scene: engine.scene, zones: engine.zones, devices: engine.statuses(), demo };
+  return { type: 'state', scene: engine.scene, zones: engine.zones, devices: engine.statuses(), demo, conflicts: conflicts.current() };
 }
 
 function broadcast(msg: ServerMessage, except?: WebSocket) {
@@ -106,6 +105,9 @@ wss.on('connection', (ws, req) => {
 
 // New devices from OpenRGB (or lost ones) need a fresh zone table in every window.
 engine.onZonesChanged = () => broadcast(stateMessage());
+
+// Warn about other RGB apps (SignalRGB, iCUE…) that would fight Bloom for the lights.
+const conflicts = demo ? { current: () => [] as string[] } : watchConflicts(() => broadcast(stateMessage()));
 
 engine.onFrame = (frame) => {
   for (const c of wss.clients) {

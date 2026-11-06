@@ -13,5 +13,5 @@
     "jsx": "react-jsx",
     "types": ["node"]
   },
-  "include": ["shared", "server", "web/src", "vite.config.ts"]
+  "include": ["shared", "server", "web/src", "electron", "vite.config.ts"]
 }

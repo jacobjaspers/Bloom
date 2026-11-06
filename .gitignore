@@ -4,3 +4,5 @@ server/smbus/modules/*.bin
 *.tmp.ts
 .claude/
 vendor/
+build/
+dist-installer/

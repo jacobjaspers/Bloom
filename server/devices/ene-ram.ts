@@ -11,11 +11,11 @@
 // the next power cycle.
 
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 import type { DeviceStatus, ZoneInfo } from '../../shared/types.ts';
 import { GuardedSmbus, type SmbusHost } from '../smbus/smbus.ts';
 import { PawnIoError, PawnIoSmbus } from '../smbus/pawnio.ts';
+import { SMBUS_MODULE_CANDIDATES } from '../paths.ts';
 import { errorMessage, type LightDevice } from './device.ts';
 
 const BOOT_ADDR = 0x77;
@@ -52,8 +52,7 @@ interface Stick {
   last: string;
 }
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const MODULE_PATH = process.env.BLOOM_SMBUS_MODULE ?? path.join(here, '..', 'smbus', 'modules', 'SmbusI801.bin');
+const MODULE_PATH = SMBUS_MODULE_CANDIDATES.find((p) => fs.existsSync(p)) ?? SMBUS_MODULE_CANDIDATES[0];
 
 const sleep = (ms: number) => {
   const end = Date.now() + ms;

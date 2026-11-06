@@ -7,10 +7,9 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { OPENRGB_DIR } from '../paths.ts';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-export const OPENRGB_EXE = process.env.BLOOM_OPENRGB_EXE ?? path.join(here, '..', '..', 'vendor', 'openrgb', 'OpenRGB.exe');
+export const OPENRGB_EXE = path.join(OPENRGB_DIR, 'OpenRGB.exe');
 const CONFIG_DIR = path.join(process.env.APPDATA ?? path.join(os.homedir(), '.config'), 'Bloom', 'openrgb');
 
 export function portOpen(port: number, host = '127.0.0.1', timeoutMs = 400): Promise<boolean> {

@@ -4,6 +4,16 @@
 
 > **Powered by [OpenRGB](https://openrgb.org).** Bloom ships the official, unmodified OpenRGB build and uses it in the background to reach the hundreds of RGB devices it supports. Bloom also has its own drivers for a few devices. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Install
+
+1. Download **`Bloom-Setup-x.y.z.exe`** from the [latest release](../../releases/latest) and run it.
+2. Windows may say *"Windows protected your PC"*, because Bloom isn't code-signed. Click **More info → Run anyway**.
+3. Approve the admin prompt. This is the only one: the installer sets up Bloom's lighting service to start at sign-in with the rights RAM lighting needs.
+4. Close other RGB apps (SignalRGB, iCUE, Armoury Crate, RGB Fusion…). Bloom warns you if one is running.
+5. **For RAM lighting:** install the free [PawnIO](https://pawnio.eu) driver, then restart.
+
+Bloom opens to a short welcome, then lives in your tray. To uninstall, use *Settings → Apps*. Your saved looks stay in `%APPDATA%\Bloom` unless you delete that folder.
+
 ## What hardware works
 
 Bloom talks to your lights two ways:
@@ -38,7 +48,11 @@ A local Node service owns the hardware and runs a 30 fps effect engine. A React 
 - **OpenRGB SDK client.** A small, dependency-free client for OpenRGB's network protocol ([`server/openrgb/client.ts`](server/openrgb/client.ts)) maps OpenRGB devices, including keyboard matrix layouts, onto Bloom zones.
 - **No build step for the server.** Node ≥ 23.6 runs the TypeScript directly (type stripping).
 
-## Run it
+## Build from source
+
+**Make the installer:** `npm install`, run `scripts/fetch-openrgb.ps1` once, then `npm run dist`. The installer lands in `dist-installer/`. The app is Electron: the same `Bloom.exe` runs as the background lighting service (`--service`, started at sign-in by the *Bloom RGB* scheduled task) or as the window and tray icon, which talks to the service on `localhost:7420`.
+
+## Run it (development)
 
 ```bash
 npm install

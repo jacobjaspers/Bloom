@@ -2,8 +2,11 @@
   "name": "bloom",
   "version": "0.1.0",
   "private": true,
-  "description": "A lightweight, open RGB lighting controller for ASRock Polychrome ARGB headers and ENE-based DDR4 RAM (G.Skill Trident Z RGB).",
+  "description": "Design your own custom RGB lighting for Windows: layered effects, presets and a live, motion-rich dashboard. Powered by OpenRGB.",
+  "author": "jacobjaspers",
+  "license": "MIT",
   "type": "module",
+  "main": "build/main.mjs",
   "engines": {
     "node": ">=23.6"
   },
@@ -12,7 +15,10 @@
     "build": "vite build",
     "start": "node server/main.ts",
     "demo": "node server/main.ts --demo",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:app": "node scripts/build-app.mjs",
+    "app": "npm run build && npm run build:app && electron .",
+    "dist": "npm run build && npm run build:app && electron-builder --win nsis"
   },
   "dependencies": {
     "koffi": "^3.3.6",
@@ -25,9 +31,56 @@
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.2.1",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.5"
+  },
+  "build": {
+    "appId": "com.jacobjaspers.bloom",
+    "productName": "Bloom",
+    "copyright": "Copyright © 2026 jacobjaspers",
+    "directories": {
+      "output": "dist-installer",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "build/**",
+      "!build/**/*.map",
+      "web/dist/**",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "vendor/openrgb", "to": "openrgb" },
+      { "from": "assets/bloom.ico", "to": "bloom.ico" },
+      { "from": "build-resources/setup", "to": "setup" },
+      { "from": "LICENSE", "to": "LICENSE.txt" },
+      { "from": "THIRD_PARTY_NOTICES.md", "to": "THIRD_PARTY_NOTICES.md" }
+    ],
+    "asar": false,
+    "npmRebuild": false,
+    "win": {
+      "target": "nsis",
+      "icon": "assets/bloom.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/bloom.ico",
+      "uninstallerIcon": "assets/bloom.ico",
+      "license": "LICENSE",
+      "include": "build-resources/installer.nsh",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Bloom",
+      "artifactName": "Bloom-Setup-${version}.${ext}",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

@@ -14,13 +14,14 @@ export interface BloomState {
   scene: Scene | null;
   zones: ZoneRuntime[];
   devices: DeviceStatus[];
+  conflicts: string[];
 }
 
 /** Latest LED colors per zone id (RGB bytes), updated ~30×/s without re-rendering React. */
 export type FrameStore = { current: Map<string, Uint8Array> };
 
 export function useBloom() {
-  const [state, setState] = useState<BloomState>({ connected: false, demo: false, scene: null, zones: [], devices: [] });
+  const [state, setState] = useState<BloomState>({ connected: false, demo: false, scene: null, zones: [], devices: [], conflicts: [] });
   const ws = useRef<WebSocket | null>(null);
   const zonesRef = useRef<ZoneRuntime[]>([]);
   const frames: FrameStore = useRef(new Map<string, Uint8Array>());
@@ -66,6 +67,7 @@ export function useBloom() {
             scene: pendingScene.current ?? msg.scene,
             zones: msg.zones,
             devices: msg.devices,
+            conflicts: msg.conflicts ?? [],
           }));
         }
       };
