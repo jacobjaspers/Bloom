@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BLENDS, CURVES, EFFECT_BY_ID, EFFECTS, makeLayer, newKey } from '../../../shared/effects.ts';
 import { MAX_LAYERS } from '../../../shared/stack.ts';
 import type { EffectId, EffectStack, Layer } from '../../../shared/types.ts';
@@ -15,10 +15,13 @@ export function StackEditor({
   stack,
   onChange,
   panelId = 'customize',
+  banner,
 }: {
   stack: EffectStack;
   onChange: (s: EffectStack) => void;
   panelId?: string;
+  /** Optional strip shown above the layers (e.g. the preset-editing banner). */
+  banner?: ReactNode;
 }) {
   const layers = stack.layers;
   const [selKey, setSelKey] = useState(layers[layers.length - 1]?.key);
@@ -40,6 +43,7 @@ export function StackEditor({
 
   return (
     <Panel id={panelId} title="Customize" info={HELP.customize}>
+      {banner}
       <Section
         title="Layers"
         info={HELP.layers}

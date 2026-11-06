@@ -271,6 +271,13 @@ export function Section({ title, children, aside, info }: { title: string; child
   );
 }
 
+const OPEN_EVENT = 'lumen:open-panel';
+
+/** Unfold a Panel by id and scroll it into view. */
+export function openPanel(id: string): void {
+  window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: id }));
+}
+
 function readOpen(key: string, fallback: boolean): boolean {
   try {
     const v = localStorage.getItem(`lumen.panel.${key}`);
@@ -307,6 +314,22 @@ export function Panel({
   useEffect(() => {
     if (open) setMounted(true);
   }, [open]);
+  const self = useRef<HTMLElement>(null);
+  // Other parts of the UI can ask a panel to open and come into view (see openPanel()).
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== id) return;
+      setOpen(true);
+      try {
+        localStorage.setItem(`lumen.panel.${id}`, '1');
+      } catch {
+        /* per-visit only */
+      }
+      window.setTimeout(() => self.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    };
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+  }, [id]);
   const bodyId = useId();
   const toggle = () => {
     setOpen((o) => {
@@ -319,7 +342,7 @@ export function Panel({
     });
   };
   return (
-    <section className={`panel-block ${open ? 'open' : 'closed'} ${className}`}>
+    <section ref={self} className={`panel-block ${open ? 'open' : 'closed'} ${className}`}>
       <header className="panel-head">
         <button type="button" className="panel-toggle" aria-expanded={open} aria-controls={bodyId} onClick={toggle}>
           <Chevron open={open} />

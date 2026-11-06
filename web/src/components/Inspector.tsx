@@ -2,18 +2,32 @@ import { useEffect, useState } from 'react';
 import { BUILTIN_PRESETS } from '../../../shared/presets.ts';
 import type { ColorOrder, Scene, ZoneRuntime, ZoneSettings } from '../../../shared/types.ts';
 import { HELP } from '../help.ts';
-import { InfoTip, Row, Section, Slider, Stepper, Toggle } from './controls.tsx';
-import { Presets } from './Presets.tsx';
+import { InfoTip, openPanel, Row, Section, Slider, Stepper, Toggle } from './controls.tsx';
+import { PresetEditBanner, Presets } from './Presets.tsx';
 import { StackEditor } from './StackEditor.tsx';
 
 const ORDERS: ColorOrder[] = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
 const KIND_TEXT = { ram: 'RAM stick', fans: 'Addressable RGB header', gpu: 'Graphics card logo', accent: 'Motherboard lighting' };
 
 export function GlobalInspector({ scene, update }: { scene: Scene; update: (m: (s: Scene) => void) => void }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  // Stop editing if that preset disappears (deleted, or replaced by an import).
+  useEffect(() => {
+    if (editing && !scene.presets.some((p) => p.id === editing)) setEditing(null);
+  }, [editing, scene.presets]);
   return (
     <div className="inspector">
-      <Presets scene={scene} update={update} />
+      <Presets
+        scene={scene}
+        update={update}
+        editing={editing}
+        onEdit={(id) => {
+          setEditing(id);
+          if (id) openPanel('customize');
+        }}
+      />
       <StackEditor
+        banner={editing && <PresetEditBanner scene={scene} update={update} id={editing} onClose={() => setEditing(null)} />}
         stack={scene.effect}
         onChange={(effect) =>
           update((s) => {

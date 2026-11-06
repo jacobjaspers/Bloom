@@ -1491,6 +1491,96 @@ code {
   text-overflow: ellipsis;
 }
 
+/* ---- preset editing ------------------------------------------------------------ */
+
+.edit-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(139, 123, 255, 0.45);
+  background: linear-gradient(135deg, rgba(139, 123, 255, 0.14), rgba(0, 216, 255, 0.06));
+  box-shadow: 0 10px 30px -18px rgba(139, 123, 255, 0.8);
+  animation: rise 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.edit-banner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #cfc8ff;
+}
+
+.edit-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.edit-banner .text-input {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.edit-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.badge.editing {
+  color: #cfc8ff;
+  border-color: rgba(139, 123, 255, 0.6);
+}
+
+.preset-card.editing {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 24px -6px rgba(139, 123, 255, 0.8);
+}
+
+/* The developer's Easter-egg preset gets a slowly shifting rainbow edge. */
+.preset-card.egg {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--surface), var(--surface)) padding-box,
+    conic-gradient(from var(--egg-angle, 0deg), #ff0040, #ffee00, #00ff6a, #00b7ff, #ff00d4, #ff0040) border-box;
+  animation: egg-spin 6s linear infinite;
+}
+
+@property --egg-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes egg-spin {
+  to {
+    --egg-angle: 360deg;
+  }
+}
+
+.egg-mark {
+  background: linear-gradient(90deg, #ffee00, #ff00d4, #00b7ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 13px;
+  cursor: help;
+}
+
 /* ---- Build editor toolbar ------------------------------------------------------ */
 
 .stage-tools {

@@ -80,6 +80,8 @@ export interface Preset {
   name: string;
   stack: EffectStack;
   builtin?: boolean;
+  /** Easter-egg note shown on a built-in (e.g. the developer's own favorite). */
+  credit?: string;
 }
 
 export interface ZoneSettings {

@@ -34,8 +34,19 @@ function download(name: string, data: unknown) {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'preset';
 
-export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene) => void) => void }) {
-  const [naming, setNaming] = useState<null | { mode: 'new' } | { mode: 'rename'; id: string }>(null);
+export function Presets({
+  scene,
+  update,
+  editing,
+  onEdit,
+}: {
+  scene: Scene;
+  update: (m: (s: Scene) => void) => void;
+  /** Id of the preset currently open in the editor, if any. */
+  editing: string | null;
+  onEdit: (id: string | null) => void;
+}) {
+  const [naming, setNaming] = useState<null | { mode: 'new' }>(null);
   const [name, setName] = useState('');
   const [notice, setNotice] = useState('');
   // Two-click delete (browser confirm dialogs can be blocked in embedded browsers).
@@ -51,11 +62,23 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
   const active = all.find((p) => p.id === scene.activePreset);
   const edited = !!active && stackSig(active.stack) !== stackSig(scene.effect);
 
-  const apply = (p: Preset) =>
+  const apply = (p: Preset) => {
+    if (editing && editing !== p.id) onEdit(null);
     update((s) => {
       s.effect = withFreshKeys(p.stack);
       s.activePreset = p.id;
     });
+  };
+
+  const duplicate = (p: Preset) => {
+    const id = `user:${newKey()}`;
+    const copy = { id, name: `${p.name} copy`.slice(0, 48), stack: withFreshKeys(p.stack) };
+    update((s) => {
+      s.presets.push(copy);
+    });
+    flash(`Added “${copy.name}” to your presets`);
+    return copy;
+  };
 
   const flash = (msg: string) => {
     setNotice(msg);
@@ -65,48 +88,67 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
   const commitName = () => {
     const n = name.trim().slice(0, 48);
     if (!n || !naming) return setNaming(null);
-    if (naming.mode === 'new') {
-      const id = `user:${newKey()}`;
-      update((s) => {
-        s.presets.push({ id, name: n, stack: structuredClone(s.effect) });
-        s.activePreset = id;
-      });
-      flash(`Saved “${n}”`);
-    } else {
-      update((s) => {
-        const p = s.presets.find((x) => x.id === naming.id);
-        if (p) p.name = n;
-      });
-    }
+    const id = `user:${newKey()}`;
+    update((s) => {
+      s.presets.push({ id, name: n, stack: structuredClone(s.effect) });
+      s.activePreset = id;
+    });
+    flash(`Saved “${n}”`);
     setNaming(null);
   };
 
   const card = (p: Preset) => {
     const isActive = p.id === scene.activePreset;
     return (
-      <div key={p.id} className={`preset-card ${isActive ? 'active' : ''}`}>
+      <div key={p.id} className={`preset-card ${isActive ? 'active' : ''} ${p.credit ? 'egg' : ''} ${editing === p.id ? 'editing' : ''}`}>
         <button type="button" className="preset-main" onClick={() => apply(p)} aria-pressed={isActive}>
           <StackThumb stack={p.stack} className="preset-thumb" />
           <span className="preset-name">
             {p.name}
-            {isActive && edited && <span className="badge">edited</span>}
+            {p.credit && (
+              <span className="egg-mark" title={p.credit} aria-label={p.credit}>
+                ✦
+              </span>
+            )}
+            {editing === p.id ? <span className="badge editing">editing</span> : isActive && edited && <span className="badge">edited</span>}
           </span>
         </button>
-        {!p.builtin && (
+        {p.builtin ? (
           <div className="preset-tools">
             <button
               type="button"
               className="icon-btn"
-              title="Rename"
-              aria-label={`Rename ${p.name}`}
+              title="Duplicate to your presets so you can edit it"
+              aria-label={`Duplicate ${p.name} to your presets`}
+              onClick={() => duplicate(p)}
+            >
+              ⧉
+            </button>
+          </div>
+        ) : (
+          <div className="preset-tools">
+            <button
+              type="button"
+              className="icon-btn"
+              title="Edit"
+              aria-label={`Edit ${p.name}`}
               onClick={() => {
-                setName(p.name);
-                setNaming({ mode: 'rename', id: p.id });
+                apply(p);
+                onEdit(p.id);
               }}
             >
               ✎
             </button>
-            <button type="button" className="icon-btn" title="Export" aria-label={`Export ${p.name}`} onClick={() => download(`lumen-${slug(p.name)}.json`, { app: 'lumen', version: 1, presets: [p] })}>
+            <button type="button" className="icon-btn" title="Duplicate" aria-label={`Duplicate ${p.name}`} onClick={() => duplicate(p)}>
+              ⧉
+            </button>
+            <button
+              type="button"
+              className="icon-btn"
+              title="Export"
+              aria-label={`Export ${p.name}`}
+              onClick={() => download(`lumen-${slug(p.name)}.json`, { app: 'lumen', version: 1, presets: [p] })}
+            >
               ⤓
             </button>
             {pendingDelete === p.id ? (
@@ -116,6 +158,7 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
                 aria-label={`Confirm delete ${p.name}`}
                 onClick={() => {
                   setPendingDelete(null);
+                  if (editing === p.id) onEdit(null);
                   update((s) => {
                     s.presets = s.presets.filter((x) => x.id !== p.id);
                     if (s.activePreset === p.id) delete s.activePreset;
@@ -200,7 +243,7 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
               onKeyDown={(e) => e.key === 'Escape' && setNaming(null)}
             />
             <button type="submit" className="primary-btn" disabled={!name.trim()}>
-              {naming.mode === 'new' ? 'Save' : 'Rename'}
+              Save
             </button>
             <button type="button" className="ghost-btn" onClick={() => setNaming(null)}>
               Cancel
@@ -218,7 +261,7 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
             >
               Save as new preset
             </button>
-            {active && edited && !active.builtin && (
+            {active && edited && !active.builtin && !editing && (
               <button
                 type="button"
                 className="ghost-btn"
@@ -227,13 +270,13 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
                     const p = s.presets.find((x) => x.id === active.id);
                     if (p) p.stack = structuredClone(s.effect);
                   });
-                  flash(`Updated “${active.name}”`);
+                  flash(`Saved changes to “${active.name}”`);
                 }}
               >
-                Update “{active.name}”
+                Save changes to “{active.name}”
               </button>
             )}
-            {active && edited && (
+            {active && edited && !editing && (
               <button type="button" className="link" onClick={() => apply(active)}>
                 Revert
               </button>
@@ -260,5 +303,77 @@ export function Presets({ scene, update }: { scene: Scene; update: (m: (s: Scene
       </h4>
       <div className="preset-grid">{BUILTIN_PRESETS.map(card)}</div>
     </Panel>
+  );
+}
+
+/**
+ * Shown at the top of Customize while one of your presets is open for editing:
+ * rename it, then save the changes back to it or cancel and restore what was saved.
+ */
+export function PresetEditBanner({
+  scene,
+  update,
+  id,
+  onClose,
+}: {
+  scene: Scene;
+  update: (m: (s: Scene) => void) => void;
+  id: string;
+  onClose: () => void;
+}) {
+  const preset = scene.presets.find((p) => p.id === id);
+  const [name, setName] = useState(preset?.name ?? '');
+  useEffect(() => setName(preset?.name ?? ''), [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!preset) return null;
+
+  const changed = stackSig(preset.stack) !== stackSig(scene.effect) || name.trim() !== preset.name;
+
+  const save = () => {
+    const n = name.trim().slice(0, 48) || preset.name;
+    update((s) => {
+      const p = s.presets.find((x) => x.id === id);
+      if (!p) return;
+      p.name = n;
+      p.stack = structuredClone(s.effect);
+      s.activePreset = id;
+    });
+    onClose();
+  };
+
+  const cancel = () => {
+    update((s) => {
+      s.effect = withFreshKeys(preset.stack);
+      s.activePreset = id;
+    });
+    onClose();
+  };
+
+  return (
+    <div className="edit-banner" role="region" aria-label={`Editing preset ${preset.name}`}>
+      <div className="edit-banner-head">
+        <span className="edit-dot" aria-hidden="true" />
+        <span>Editing preset</span>
+      </div>
+      <input
+        className="text-input"
+        value={name}
+        maxLength={48}
+        aria-label="Preset name"
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') cancel();
+        }}
+      />
+      <p className="hint">Change anything below, then save it back to this preset.</p>
+      <div className="edit-banner-actions">
+        <button type="button" className="primary-btn" disabled={!changed} onClick={save}>
+          Save changes
+        </button>
+        <button type="button" className="ghost-btn" onClick={cancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }

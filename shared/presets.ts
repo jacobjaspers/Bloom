@@ -54,4 +54,27 @@ export const BUILTIN_PRESETS: Preset[] = [
     makeLayer('twinkle', { palette: stops('#ffffff', '#b8c8ff', '#ffd0f0'), size: 35, speed: 35, blend: 'add' }),
   ),
   P('daylight', 'Daylight', makeLayer('solid', { palette: stops('#fff1dc') })),
+  // Easter egg: the developer's own favorite, tuned on the original rig.
+  {
+    ...P(
+      'wonderpop',
+      'Wonder Pop',
+      makeLayer('ember', {
+        palette: [
+          { pos: 0.405, color: '#ff0040' },
+          { pos: 0.518, color: '#ff9900' },
+          { pos: 0.61, color: '#ffee00' },
+          { pos: 0.684, color: '#00ff6a' },
+          { pos: 0.759, color: '#00b7ff' },
+          { pos: 0.844, color: '#6a3dff' },
+          { pos: 0.922, color: '#ff00d4' },
+        ],
+        speed: 25,
+        size: 49,
+        intensity: 90,
+        blend: 'screen',
+      }),
+    ),
+    credit: 'A favorite from the developer',
+  },
 ];

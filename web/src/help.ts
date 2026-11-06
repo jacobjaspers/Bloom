@@ -10,8 +10,8 @@ export const HELP = {
   ambient: 'Tints this window with the live colors of your lights, like a TV glowing on the wall behind it. Only affects the app, not your PC.',
 
   // Presets
-  yours: 'Looks you saved. Hover a card to rename, export or delete it.',
-  builtIn: 'Looks that come with Lumen. Change one and save it as your own.',
+  yours: 'Looks you saved. Hover a card to edit, duplicate, export or delete it. Edit opens it in Customize so you can rename it and change anything.',
+  builtIn: 'Looks that come with Lumen. Hover a card and press ⧉ to copy it into your presets, then edit the copy.',
 
   // Stack editor
   layers: 'Effects stacked on top of each other. The bottom layer is the base; layers above it blend on top, e.g. sparkles over an aurora.',
