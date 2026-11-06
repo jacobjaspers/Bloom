@@ -63,10 +63,7 @@ export function ZoneInspector({
   const presets = [...scene.presets, ...BUILTIN_PRESETS];
 
   return (
-    <div className="inspector">
-      <button type="button" className="back-link" onClick={onBack}>
-        ← All zones
-      </button>
+    <section className="inspector zone-card" aria-label={`${name} settings`}>
       <div className="inspector-head">
         <div className="grow">
           <input
@@ -82,6 +79,9 @@ export function ZoneInspector({
           </p>
         </div>
         <Toggle checked={s.enabled} label="Zone on/off" onChange={(enabled) => set({ enabled })} />
+        <button type="button" className="icon-btn close-btn" onClick={onBack} aria-label="Close zone settings" title="Close">
+          ×
+        </button>
       </div>
 
       <Section title="Output">
@@ -124,7 +124,15 @@ export function ZoneInspector({
         )}
       </Section>
 
-      {!s.synced && <StackEditor panelId="customize-zone" stack={s.effect} onChange={(effect) => set({ effect })} />}
+      {!s.synced && (
+        <StackEditor
+          panelId="customize-zone"
+          title="Zone effect"
+          info={HELP.zoneEffect}
+          stack={s.effect}
+          onChange={(effect) => set({ effect })}
+        />
+      )}
 
       <Section
         title="Hardware"
@@ -174,6 +182,6 @@ export function ZoneInspector({
           </select>
         </div>
       </Section>
-    </div>
+    </section>
   );
 }

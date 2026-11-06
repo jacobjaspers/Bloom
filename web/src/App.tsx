@@ -129,7 +129,8 @@ export function App() {
                 />
                 <DeviceList devices={devices} demo={demo} />
               </Panel>
-              {zone ? (
+              {/* A selected zone's settings slot in above Presets/Customize, which stay put. */}
+              {zone && (
                 <ZoneInspector
                   key={zone.id}
                   zone={zone}
@@ -138,9 +139,8 @@ export function App() {
                   identify={identify}
                   onBack={() => setSelected(null)}
                 />
-              ) : (
-                <GlobalInspector scene={scene} update={updateScene} />
               )}
+              <GlobalInspector scene={scene} update={updateScene} />
             </div>
           </aside>
         </main>

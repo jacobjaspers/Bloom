@@ -32,6 +32,7 @@ export const HELP = {
   // Zone inspector
   zoneBrightness: 'Brightness for this zone only, on top of the master brightness at the top of the window.',
   follow: 'On: this zone shows the same effect as everything else. Off: give it its own effect.',
+  zoneEffect: 'This zone’s own effect, used instead of the main one because Follow global effect is off. The Presets and Customize panels below still control every other zone.',
   zonePreset: 'Copy a preset into this zone as a starting point, then adjust it.',
   ledsConnected: 'How many LEDs are plugged into this header. Wrong numbers can leave some LEDs dark or stretch the effect.',
   fansOnHeader: 'How many fans share this header, so the preview draws them correctly. Use 0 for an LED strip.',

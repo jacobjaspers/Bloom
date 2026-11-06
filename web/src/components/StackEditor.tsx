@@ -16,12 +16,16 @@ export function StackEditor({
   onChange,
   panelId = 'customize',
   banner,
+  title = 'Customize',
+  info = HELP.customize,
 }: {
   stack: EffectStack;
   onChange: (s: EffectStack) => void;
   panelId?: string;
   /** Optional strip shown above the layers (e.g. the preset-editing banner). */
   banner?: ReactNode;
+  title?: string;
+  info?: string;
 }) {
   const layers = stack.layers;
   const [selKey, setSelKey] = useState(layers[layers.length - 1]?.key);
@@ -42,7 +46,7 @@ export function StackEditor({
   };
 
   return (
-    <Panel id={panelId} title="Customize" info={HELP.customize}>
+    <Panel id={panelId} title={title} info={info}>
       {banner}
       <Section
         title="Layers"
