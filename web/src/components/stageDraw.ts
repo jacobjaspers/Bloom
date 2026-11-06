@@ -5,7 +5,7 @@ import type { DeviceStatus, PartId, Scene, ZoneRuntime } from '../../../shared/t
 import type { EditTarget } from './Stage.tsx';
 
 const ACCENT = '#8b7bff';
-const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3 } as const;
+const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3, device: 4 } as const;
 export const HANDLE = 1.6; // resize handle half-size, scene units
 const PART_NAME: Record<PartId, string> = { cpu: 'CPU', board: 'Motherboard' };
 
@@ -216,6 +216,13 @@ export function draw(
           ctx.fillStyle = grad;
           ctx.fill();
         }
+      } else if (sh.type === 'panel') {
+        // Keyboard / mouse / headset body behind its LEDs.
+        roundRect(ctx, X(sh.x), Y(sh.y), sh.w * s, sh.h * s, 0.8 * s);
+        ctx.fillStyle = '#12141b';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.stroke();
       } else {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = Math.max(1, 0.9 * s);

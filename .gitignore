@@ -3,3 +3,4 @@ web/dist/
 server/smbus/modules/*.bin
 *.tmp.ts
 .claude/
+vendor/

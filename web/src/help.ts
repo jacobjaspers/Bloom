@@ -5,7 +5,7 @@ export const HELP = {
   zones: 'Every part of your PC that lights up. Click one to give it its own settings, or use the switch to turn it on or off.',
   presets: 'Ready-made looks. Click one to apply it to all zones. Save your own from the Customize panel.',
   customize: 'Build the look yourself. Pick an effect, choose its colors, and tune how it moves.',
-  hardware: 'The lighting controllers Bloom found and whether each is connected.',
+  hardware: 'The lighting controllers Bloom found. Bloom drives some devices itself; everything else goes through OpenRGB, which runs quietly in the background.',
   layout: 'Move and resize the fans, RAM, GPU, CPU and motherboard so this picture matches your PC. Drag a part to move it, drag its corner to resize, R rotates, Ctrl+Z undoes. Effects follow the new positions on your real lights.',
   ambient: 'Tints this window with the live colors of your lights, like a TV glowing on the wall behind it. Only affects the app, not your PC.',
 

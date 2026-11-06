@@ -13,6 +13,8 @@ export interface LightDevice {
   open(): Promise<void>;
   write(frame: Map<string, Uint8Array>): void;
   close(): void;
+  /** Devices that can appear later (e.g. via OpenRGB) call this when their zones change. */
+  onChange?: (() => void) | null;
 }
 
 export function errorMessage(err: unknown): string {

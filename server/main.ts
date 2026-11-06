@@ -11,6 +11,7 @@ import { loadScene, useSceneFile } from './config.ts';
 import { AsrockPolychrome } from './devices/asrock-polychrome.ts';
 import { EneRam } from './devices/ene-ram.ts';
 import { GigabyteGpu } from './devices/gigabyte-gpu.ts';
+import { OpenRgbDevices } from './devices/openrgb.ts';
 import { demoDevices } from './devices/simulated.ts';
 import { Engine } from './engine.ts';
 
@@ -21,10 +22,15 @@ const WEB_DIST = path.join(here, '..', 'web', 'dist');
 
 if (demo) useSceneFile('scene-demo.json');
 
-const engine = new Engine(
-  demo ? demoDevices() : [new AsrockPolychrome(), new EneRam(), new GigabyteGpu()],
-  loadScene(),
-);
+// Bloom's own drivers first; OpenRGB then handles every other device (and skips these).
+// BLOOM_NATIVE=0 hands everything to OpenRGB; BLOOM_OPENRGB=0 turns OpenRGB off.
+function hardware() {
+  const native = process.env.BLOOM_NATIVE === '0' ? [] : [new AsrockPolychrome(), new EneRam(), new GigabyteGpu()];
+  const nativeConnected = () => new Set(native.filter((d) => d.status().state === 'connected').map((d) => d.id));
+  return process.env.BLOOM_OPENRGB === '0' ? native : [...native, new OpenRgbDevices(nativeConnected)];
+}
+
+const engine = new Engine(demo ? demoDevices() : hardware(), loadScene());
 await engine.open();
 engine.start();
 
@@ -97,6 +103,9 @@ wss.on('connection', (ws, req) => {
     }
   });
 });
+
+// New devices from OpenRGB (or lost ones) need a fresh zone table in every window.
+engine.onZonesChanged = () => broadcast(stateMessage());
 
 engine.onFrame = (frame) => {
   for (const c of wss.clients) {

@@ -16,7 +16,7 @@ const SWEEP_MS = 1100;
 /** At startup, zones light up one after another. */
 const INTRO_STAGGER = 0.24;
 const INTRO_ZONE = 0.75;
-const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3 } as const;
+const KIND_ORDER = { fans: 0, ram: 1, gpu: 2, accent: 3, device: 4 } as const;
 
 const smoothstep = (e0: number, e1: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
@@ -47,11 +47,21 @@ export class Engine {
   private introStart = 0;
   private introOrder = new Map<string, number>();
   onFrame: ((frame: Uint8Array) => void) | null = null;
+  /** Called when the set of zones changes after startup (devices found or lost). */
+  onZonesChanged: (() => void) | null = null;
 
   constructor(devices: LightDevice[], scene: Scene) {
     this.devices = devices;
     this.scene = scene;
     this.globalRenderer = createRenderer({ layers: [] }); // real one is built in setScene()
+    for (const d of devices) {
+      if ('onChange' in d) {
+        d.onChange = () => {
+          this.setScene(this.scene, false);
+          this.onZonesChanged?.();
+        };
+      }
+    }
   }
 
   async open(): Promise<void> {

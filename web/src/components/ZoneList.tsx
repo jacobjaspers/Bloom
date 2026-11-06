@@ -5,7 +5,7 @@ import type { FrameStore } from '../useBloom.ts';
 import { HELP } from '../help.ts';
 import { InfoTip, Toggle } from './controls.tsx';
 
-const KIND_LABEL: Record<ZoneKind, string> = { fans: 'Fans', ram: 'Memory', gpu: 'Graphics', accent: 'Board' };
+const KIND_LABEL: Record<ZoneKind, string> = { fans: 'Fans', ram: 'Memory', gpu: 'Graphics', accent: 'Board & strips', device: 'Devices' };
 
 function Strip({ zoneId, frames }: { zoneId: string; frames: FrameStore }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -48,7 +48,7 @@ export function ZoneList({
   onSelect: (id: string | null) => void;
   onToggle: (id: string, on: boolean) => void;
 }) {
-  const groups = (['fans', 'ram', 'gpu', 'accent'] as ZoneKind[])
+  const groups = (['fans', 'ram', 'gpu', 'accent', 'device'] as ZoneKind[])
     .map((kind) => ({ kind, zones: zones.filter((z) => z.kind === kind) }))
     .filter((g) => g.zones.length);
 
@@ -75,6 +75,7 @@ export function ZoneList({
                     <span className="zone-name">{s.label || z.name}</span>
                     <span className="zone-sub">
                       {z.ledCount} {z.ledCount === 1 ? 'LED' : 'LEDs'} · {s.synced ? 'Synced' : 'Custom'}
+                      {z.via && <span className="via"> · via {z.via}</span>}
                     </span>
                   </span>
                   <Strip zoneId={z.id} frames={frames} />
@@ -107,6 +108,13 @@ export function DeviceList({ devices, demo }: { devices: DeviceStatus[]; demo: b
           </div>
         </div>
       ))}
+      <p className="credit">
+        Wider device support powered by{' '}
+        <a href="https://openrgb.org" target="_blank" rel="noreferrer">
+          OpenRGB
+        </a>{' '}
+        (GPL-2.0).
+      </p>
     </div>
   );
 }

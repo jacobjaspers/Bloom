@@ -1,12 +1,28 @@
 # Bloom
 
-A lightweight RGB lighting controller for my PC. It's a from-scratch alternative to SignalRGB, built around the hardware I actually own:
+**Design your own custom RGB lighting for Windows.** Layer effects, build gradients, shape how colors move, save your looks as presets and share them, all from a live, motion-rich dashboard that shows your whole PC glowing in real time.
 
-| Hardware | Interface | Driver |
-|---|---|---|
-| ASRock B560M-C Polychrome (2× ARGB fan headers, 2× 12V headers, board accent) | USB HID `26CE:01A2` | [`asrock-polychrome.ts`](server/devices/asrock-polychrome.ts) |
-| G.Skill Trident Z RGB DDR4 (ENE `DIMM_LED-0103` controller per stick) | Intel PCH SMBus via [PawnIO](https://pawnio.eu) | [`ene-ram.ts`](server/devices/ene-ram.ts) |
-| GIGABYTE RTX 3060 Gaming OC logo (RGB Fusion 2, I2C `0x32`) | GPU I2C bus via NVIDIA's NvAPI | [`gigabyte-gpu.ts`](server/devices/gigabyte-gpu.ts) |
+> **Powered by [OpenRGB](https://openrgb.org).** Bloom ships the official, unmodified OpenRGB build and uses it in the background to reach the hundreds of RGB devices it supports. Bloom also has its own drivers for a few devices. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## What hardware works
+
+Bloom talks to your lights two ways:
+
+1. **Its own drivers** for a few devices, written from scratch and tested on real hardware:
+
+   | Hardware | Interface | Driver |
+   |---|---|---|
+   | ASRock Polychrome USB boards (ARGB fan headers, 12V headers, board accent), e.g. B560M-C | USB HID `26CE:01A2` | [`asrock-polychrome.ts`](server/devices/asrock-polychrome.ts) |
+   | ENE-based DDR4 RGB RAM, e.g. G.Skill Trident Z RGB (`DIMM_LED-0103`) | Intel PCH SMBus via [PawnIO](https://pawnio.eu) | [`ene-ram.ts`](server/devices/ene-ram.ts) |
+   | GIGABYTE RTX 3060 Gaming OC logo (RGB Fusion 2, I2C `0x32`) | GPU I2C bus via NVIDIA's NvAPI | [`gigabyte-gpu.ts`](server/devices/gigabyte-gpu.ts) |
+
+2. **OpenRGB** for everything else it recognizes: motherboards, RAM, graphics cards, fan hubs, LED strips, keyboards, mice, headsets and more. Those devices appear in Bloom like any other zone, marked *via OpenRGB*. Bloom switches off OpenRGB's detection for the devices it drives itself, so the two never fight over the same hardware.
+
+Devices neither one knows yet won't light up. If yours doesn't show up, please open an issue with its make and model.
+
+**Known issue:** OpenRGB's own ASRock Polychrome USB driver can make ARGB fans flicker. Bloom always uses its built-in ASRock driver for those boards instead, so this only matters if you turn Bloom's own drivers off (`BLOOM_NATIVE=0`).
+
+## How it works
 
 A local Node service owns the hardware and runs a 30 fps effect engine. A React control panel talks to it over a WebSocket and shows a live preview of every LED.
 
@@ -19,12 +35,14 @@ A local Node service owns the hardware and runs a 30 fps effect engine. A React 
 - **Live preview, not a mock-up.** The stage canvas draws the exact bytes being sent to the hardware, streamed as compact binary frames.
 - **SMBus safety guard.** RAM lighting shares a bus with the DIMMs' SPD EEPROMs. Every SMBus transaction goes through an allow-list ([`smbus.ts`](server/smbus/smbus.ts)) that hard-refuses the SPD ranges, and the system-wide `Access_SMBUS.HTP.Method` mutex is held so Bloom never collides with hardware monitors like HWiNFO.
 - **Demo mode.** `npm run demo` simulates the full rig, so the UI runs on any machine.
+- **OpenRGB SDK client.** A small, dependency-free client for OpenRGB's network protocol ([`server/openrgb/client.ts`](server/openrgb/client.ts)) maps OpenRGB devices, including keyboard matrix layouts, onto Bloom zones.
 - **No build step for the server.** Node ≥ 23.6 runs the TypeScript directly (type stripping).
 
 ## Run it
 
 ```bash
 npm install
+powershell -File scripts/fetch-openrgb.ps1   # adds OpenRGB (wider device support)
 npm run build      # build the control panel
 npm start          # http://localhost:7420
 ```

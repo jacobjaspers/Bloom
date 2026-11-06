@@ -28,7 +28,9 @@ export interface LedPoint {
 export type Shape =
   | { type: 'fan'; cx: number; cy: number; r: number }
   | { type: 'stick'; x: number; y: number; w: number; h: number }
-  | { type: 'strip'; x1: number; y1: number; x2: number; y2: number };
+  | { type: 'strip'; x1: number; y1: number; x2: number; y2: number }
+  /** Body of a peripheral (keyboard, mouse…) behind its LEDs. */
+  | { type: 'panel'; x: number; y: number; w: number; h: number };
 
 export interface ZoneLayout {
   zoneId: string;
@@ -113,6 +115,9 @@ export function layoutScene(
   let ramSlot = 0;
   let accentSlot = 0;
   let singleSlot = 0;
+  // Peripherals (keyboards, mice, headsets…) fill rows along the bottom of the scene.
+  let devX = 6;
+  let devY = 60;
   const ramTotal = zones.filter((z) => z.kind === 'ram').length;
 
   return zones.map((z) => {
@@ -174,6 +179,48 @@ export function layoutScene(
         shapes: [{ type: 'strip', x1, y1: y, x2, y2: y }],
         bounds: { x: x1 - 1.5, y: y - 1.5, w: x2 - x1 + 3, h: 3 },
         body: { ...g },
+      };
+    }
+
+    if (z.kind === 'device') {
+      const points: LedPoint[] = [];
+      let w: number, h: number;
+      if (z.grid) {
+        const cell = Math.min(1.6, 34 / z.grid.width);
+        w = z.grid.width * cell;
+        h = Math.max(cell, z.grid.height * cell);
+        if (devX + w > 94) {
+          devX = 6;
+          devY -= 10;
+        }
+        for (let row = 0; row < z.grid.height; row++) {
+          for (let col = 0; col < z.grid.width; col++) {
+            const led = z.grid.map[row * z.grid.width + col];
+            if (led === undefined || led >= count) continue;
+            points[led] = pt(devX + (col + 0.5) * cell, devY + (row + 0.5) * cell, led / count, col / z.grid.width, row);
+          }
+        }
+        // LEDs the map doesn't place go in a line underneath.
+        for (let i = 0; i < count; i++) if (!points[i]) points[i] = pt(devX + (i / count) * w, devY + h + 1, i / count, i / count, 0);
+      } else {
+        w = Math.min(24, Math.max(4, count * 0.9));
+        h = 3;
+        if (devX + w > 94) {
+          devX = 6;
+          devY -= 6;
+        }
+        for (let i = 0; i < count; i++) {
+          const t = count === 1 ? 0.5 : i / (count - 1);
+          points.push(pt(devX + 1 + t * (w - 2), devY + h / 2, i / count, i / count, 0));
+        }
+      }
+      const box = { x: devX, y: devY, w, h };
+      devX += w + 3;
+      return {
+        zoneId: z.id,
+        points,
+        shapes: [{ type: 'panel', ...box }],
+        bounds: { x: box.x - 0.5, y: box.y - 0.5, w: box.w + 1, h: box.h + 1 },
       };
     }
 
@@ -251,9 +298,9 @@ function place(base: ZoneLayout, p: Placement | undefined): ZoneLayout {
         const m = tp(s.cx, s.cy);
         return { ...s, cx: m.x, cy: m.y, r: s.r * k };
       }
-      if (s.type === 'stick') {
+      if (s.type === 'stick' || s.type === 'panel') {
         const r = tr(s);
-        return { type: 'stick', ...r };
+        return { type: s.type, ...r };
       }
       const a = tp(s.x1, s.y1), b = tp(s.x2, s.y2);
       return { type: 'strip', x1: a.x, y1: a.y, x2: b.x, y2: b.y };

@@ -7,7 +7,7 @@ import { PresetEditBanner, Presets } from './Presets.tsx';
 import { StackEditor } from './StackEditor.tsx';
 
 const ORDERS: ColorOrder[] = ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'];
-const KIND_TEXT = { ram: 'RAM stick', fans: 'Addressable RGB header', gpu: 'Graphics card logo', accent: 'Motherboard lighting' };
+const KIND_TEXT = { ram: 'RAM', fans: 'Fans', gpu: 'Graphics card', accent: 'Lighting strip', device: 'Device' };
 
 export function GlobalInspector({ scene, update }: { scene: Scene; update: (m: (s: Scene) => void) => void }) {
   const [editing, setEditing] = useState<string | null>(null);
@@ -76,6 +76,7 @@ export function ZoneInspector({
           />
           <p>
             {KIND_TEXT[zone.kind]} · {zone.ledCount} {zone.ledCount === 1 ? 'LED' : 'LEDs'}
+            {zone.via && ` · via ${zone.via}`}
           </p>
         </div>
         <Toggle checked={s.enabled} label="Zone on/off" onChange={(enabled) => set({ enabled })} />

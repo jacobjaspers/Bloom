@@ -1512,6 +1512,24 @@ code {
   text-overflow: ellipsis;
 }
 
+.credit {
+  margin: 4px 4px 0;
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.credit a {
+  color: var(--muted);
+}
+
+.credit a:hover {
+  color: var(--accent);
+}
+
+.via {
+  color: var(--faint);
+}
+
 /* ---- preset editing ------------------------------------------------------------ */
 
 .edit-banner {

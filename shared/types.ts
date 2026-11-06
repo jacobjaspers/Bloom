@@ -3,7 +3,7 @@
 
 export type RGB = [number, number, number];
 
-export type ZoneKind = 'fans' | 'ram' | 'gpu' | 'accent';
+export type ZoneKind = 'fans' | 'ram' | 'gpu' | 'accent' | 'device';
 
 export type ColorOrder = 'RGB' | 'RBG' | 'GRB' | 'GBR' | 'BRG' | 'BGR';
 
@@ -18,6 +18,10 @@ export interface ZoneInfo {
   maxLeds: number;
   /** True when the LED count is configurable (ARGB headers). */
   configurable: boolean;
+  /** Set when the zone is driven through another program (e.g. "OpenRGB"). */
+  via?: string;
+  /** Keyboard-style LED grid: map[row * width + col] = LED index in the zone, or 0xFFFFFFFF for a gap. */
+  grid?: { width: number; height: number; map: number[] };
 }
 
 export type EffectId =
