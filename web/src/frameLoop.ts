@@ -4,9 +4,21 @@ type Fn = (now: number) => void;
 const subs = new Set<Fn>();
 let raf = 0;
 
+const reported = new WeakSet<Fn>();
+
 function loop(now: number) {
-  for (const f of subs) f(now);
+  // Schedule the next frame first: one canvas throwing must never freeze every other one.
   raf = subs.size ? requestAnimationFrame(loop) : 0;
+  for (const f of subs) {
+    try {
+      f(now);
+    } catch (err) {
+      if (!reported.has(f)) {
+        reported.add(f);
+        console.error('[bloom] a canvas failed to draw a frame:', err);
+      }
+    }
+  }
 }
 
 export function subscribeFrame(fn: Fn): () => void {

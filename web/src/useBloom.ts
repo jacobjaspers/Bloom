@@ -40,11 +40,15 @@ export function useBloom() {
         if (ev.data instanceof ArrayBuffer) {
           const bytes = new Uint8Array(ev.data);
           if (bytes[0] !== FRAME_MARKER) return;
+          // When an LED count changes, a few frames in flight still have the old layout.
+          // Slicing those with the new zone table misaligns every zone, so drop any frame
+          // whose size doesn't match and keep showing the previous one.
+          const expected = 1 + zonesRef.current.reduce((n, z) => n + z.ledCount * 3, 0);
+          if (bytes.length !== expected) return;
           let off = 1;
           const map = new Map<string, Uint8Array>();
           for (const z of zonesRef.current) {
             const n = z.ledCount * 3;
-            if (off + n > bytes.length) break;
             map.set(z.id, bytes.subarray(off, off + n));
             off += n;
           }

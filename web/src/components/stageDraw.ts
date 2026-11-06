@@ -153,7 +153,7 @@ export function draw(
     const z = st.zones.find((zz) => zz.id === l.zoneId);
     const radius = (z?.kind === 'ram' ? 4.5 : 5.5) * s;
     for (let i = 0; i < l.points.length; i++) {
-      const r = rgb[i * 3], g = rgb[i * 3 + 1], bb = rgb[i * 3 + 2];
+      const r = rgb[i * 3] ?? 0, g = rgb[i * 3 + 1] ?? 0, bb = rgb[i * 3 + 2] ?? 0;
       if (r + g + bb < 6) continue;
       const p = l.points[i];
       const grad = ctx.createRadialGradient(X(p.x), Y(p.y), 0, X(p.x), Y(p.y), radius);

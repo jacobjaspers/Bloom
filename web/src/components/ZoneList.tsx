@@ -20,7 +20,7 @@ function Strip({ zoneId, frames }: { zoneId: string; frames: FrameStore }) {
         const w = c.clientWidth, h = c.clientHeight;
         ctx.clearRect(0, 0, w, h);
         if (!rgb || !rgb.length) return;
-        const n = rgb.length / 3;
+        const n = Math.floor(rgb.length / 3);
         const grad = ctx.createLinearGradient(0, 0, w, 0);
         for (let i = 0; i < n; i++) {
           grad.addColorStop(n === 1 ? 0.5 : i / (n - 1), `rgb(${rgb[i * 3]},${rgb[i * 3 + 1]},${rgb[i * 3 + 2]})`);
