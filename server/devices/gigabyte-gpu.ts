@@ -3,8 +3,8 @@
 //
 // Protocol (8-byte raw I2C writes, no register byte):
 //   AB 00 …            handshake; reading 4 bytes back returns AB 1x …
-//   88 mode spd bri 08 zone 00 00   set a zone's mode (01 = static, brightness 0x63 = max)
-//   40 R G B zone 00 00 00          set a static zone's color (zones 1–4)
+//   88 mode spd bri 08 zone 00 00   set a zone's mode (01 = static, brightness 0x63 = max), once at start
+//   40 R G B zone 00 00 00          set a static zone's color (zones 1–4), every frame
 // Only cards we've positively identified are touched, and only at their known address.
 
 import type { DeviceStatus, ZoneInfo } from '../../shared/types.ts';
@@ -28,7 +28,7 @@ const KNOWN: KnownCard[] = [
 
 const MODE_STATIC = 0x01;
 const HANDSHAKE_OK = [0x10, 0x11, 0x12, 0x14];
-const MIN_INTERVAL_MS = 50; // ~20 fps is plenty for a logo and keeps the GPU bus quiet
+const MIN_INTERVAL_MS = 30; // keep up with the 30 fps engine (4 small writes per frame)
 
 export class GigabyteGpu implements LightDevice {
   readonly id = 'gpu';
@@ -116,11 +116,10 @@ export class GigabyteGpu implements LightDevice {
     const key = src.join(',');
     if (key === this.last || now - this.lastWrite < MIN_INTERVAL_MS) return;
     let ok = true;
+    // Static mode is set once in open(). Only colors go out per frame: re-sending the
+    // mode packet restarts the controller's effect each time, which makes the logo flicker.
     for (let z = 0; z < this.card.zones; z++) {
-      const zone = z + 1;
-      // Mirrors the sequence proven on this card: re-assert static mode, then the color.
-      ok = this.send([0x88, MODE_STATIC, 0x06, 0x63, 0x08, zone + 1]) === 0 && ok;
-      ok = this.send([0x40, src[z * 3] ?? 0, src[z * 3 + 1] ?? 0, src[z * 3 + 2] ?? 0, zone]) === 0 && ok;
+      ok = this.send([0x40, src[z * 3] ?? 0, src[z * 3 + 1] ?? 0, src[z * 3 + 2] ?? 0, z + 1]) === 0 && ok;
     }
     this.lastWrite = now;
     if (ok) {

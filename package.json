@@ -1,6 +1,6 @@
 {
   "name": "bloom",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Design your own custom RGB lighting for Windows: layered effects, presets and a live, motion-rich dashboard. Powered by OpenRGB.",
   "author": "jacobjaspers",
